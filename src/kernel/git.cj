@@ -954,11 +954,14 @@ public func planMerge(root: String, branch: String): MergePlan {
     let ab = aheadBehind(root, defBranch, branch)  // (behind, ahead)
     let behind = ab[0]
     let ahead = ab[1]
-    if (behind == 0) {
-        return MergePlan("merged", 0, 0, defBranch, branch, "${branch} 已合入 ${defBranch}")
-    }
+    // ahead = branch 领先默认分支的提交数（独有提交）；behind = 落后数
     if (ahead == 0) {
-        return MergePlan("fast-forward", 0, behind, defBranch, branch, "可直接 fast-forward（${behind} 个新提交）")
+        // 分支无独有提交 = 已完全包含于默认分支
+        return MergePlan("merged", 0, behind, defBranch, branch, "${branch} 已合入 ${defBranch}")
+    }
+    if (behind == 0) {
+        // 默认分支无新提交，可直接快进到 branch
+        return MergePlan("fast-forward", ahead, 0, defBranch, branch, "${defBranch} 可直接 fast-forward 到 ${branch}（${ahead} 个新提交）")
     }
     return MergePlan("merge", ahead, behind, defBranch, branch, "需三方合并（领先 ${ahead} / 落后 ${behind}）")
 }
@@ -1178,7 +1181,7 @@ func testPlanMergeStrategies(): Unit {
     gitRun(base, ["add", "."], true)
     gitRun(base, ["-c", "user.name=t", "-c", "user.email=t@t", "commit", "-m", "feat"], true)
     let p = planMerge(base, "feat/x")
-    @Assert(p.kind == "fast-forward" || p.kind == "merged")
+    @Assert(p.kind == "fast-forward")  // feat/x 领先 main 1 提交、main 无新提交
     // 再让 main 推进一提交，让 feat/x 落后
     gitRun(base, ["checkout", "-q", "main"], true)
     writeFileAtomic(base + "/x.txt", "3")
@@ -1468,13 +1471,13 @@ public func runGitOp(root: String, op: String, message: String): GitOpResult {
 
 /// commit 时的身份兜底：优先全局配置，没有则用占位身份，避免 commit 直接失败
 func gitUserName(): String {
-    let r = gitTry(".", ["config", "user.name"])
+    let r = gitTry(".", ["config", "--global", "user.name"])
     let v = r.stdout.trimAscii()
     return if (v.isEmpty()) { "deepgit" } else { v }
 }
 
 func gitUserEmail(): String {
-    let r = gitTry(".", ["config", "user.email"])
+    let r = gitTry(".", ["config", "--global", "user.email"])
     let v = r.stdout.trimAscii()
     return if (v.isEmpty()) { "deepgit@local" } else { v }
 }

@@ -119,8 +119,36 @@ public func saveMilestones(list: ArrayList<Milestone>): Unit {
 }
 
 /// 新增里程碑（同项目同名幂等：已存在则原样返回）
+/// 校验 YYYY-MM-DD（月 1..12 日 1..31）；空串放行（未设置）
+func isAsciiDigitByte(c0: UInt8): Bool {
+    return c0 >= 0x30 && c0 <= 0x39
+}
+
+func validTargetDate(s0: String): Bool {
+    if (s0.isEmpty()) {
+        return true
+    }
+    if (s0.size != 10) {
+        return false
+    }
+    if (s0[4] != 0x2Du8 || s0[7] != 0x2Du8) {  // '-'
+        return false
+    }
+    for (i in [0, 1, 2, 3, 5, 6, 8, 9]) {
+        if (!isAsciiDigitByte(s0[i])) {
+            return false
+        }
+    }
+    let m = Int64.parse(s0[5..7])
+    let d = Int64.parse(s0[8..10])
+    return m >= 1 && m <= 12 && d >= 1 && d <= 31
+}
+
 public func addMilestone(projectId: String, name: String, description: String,
                          targetDate: String, tag: String): (Milestone, Bool) {
+    if (!validTargetDate(targetDate)) {
+        throw DgError.usage("目标日期格式须为 YYYY-MM-DD：${targetDate}")
+    }
     let list = loadMilestones()
     for (m in list) {
         if (m.projectId == projectId && m.name == name) {
@@ -202,8 +230,13 @@ public func daysFromToday(dateStr: String): Int64 {
 /// 简化历法换算：YYYY-MM-DD → 自 1970-01-01 的天数
 func epochDays(dateStr: String): Int64 {
     let y = Int64.parse(dateStr[0..4])
-    let m = Int64.parse(dateStr[5..7])
-    let d = Int64.parse(dateStr[8..10])
+    var m = Int64.parse(dateStr[5..7])
+    var d = Int64.parse(dateStr[8..10])
+    // 防御性 clamp：脏数据不砖死整个 list/dashboard
+    if (m < 1) { m = 1 }
+    if (m > 12) { m = 12 }
+    if (d < 1) { d = 1 }
+    if (d > 31) { d = 31 }
     // 累计各月天数（非闰年），闰年由 isLeap 修正
     let cum = [0, 31, 59, 90, 120, 151, 181, 212, 243, 273, 304, 334]
     var days = (y - 1970) * 365 + (y - 1969) / 4 - (y - 1901) / 100 + (y - 1601) / 400

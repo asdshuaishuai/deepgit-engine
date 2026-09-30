@@ -47,7 +47,7 @@ public class DeepResult {
 
 public func runDeep(project: ProjectEntry, config: Config, opts: DeepOptions): DeepResult {
     let store = ensureStore(project.id)
-    let lockFile = "${store.locks}/deep.lock"
+    let lockFile = "${store.locks}/project.lock"
     let startedAt = nowIso()
 
     return withLock(lockFile, 900000, { =>

@@ -180,13 +180,23 @@ public func jsonStrArray(items: ArrayList<String>): JsonValue {
 }
 
 func errorStatusJson(p: ProjectEntry, message: String): JsonValue {
+    // 错误桩也必须补齐客户端契约的非可选键（缺一个键整个 envelope 解码失败）
     let err = Json.obj()
     Json.set(err, "id", Json.of(p.id))
     Json.set(err, "name", Json.of(p.name))
     Json.set(err, "path", Json.of(p.path))
     Json.set(err, "kind", Json.of(p.kind))
+    Json.set(err, "remote", Json.of(""))
     Json.set(err, "error", Json.of(message))
     Json.set(err, "headline", Json.of("状态获取失败"))
+    Json.set(err, "currentBranch", Json.of(""))
+    Json.set(err, "defaultBranch", Json.of(""))
+    Json.set(err, "userDirtyCount", Json.of(0))
+    Json.set(err, "untrackedCount", Json.of(0))
+    Json.set(err, "stashCount", Json.of(0))
+    Json.set(err, "worktreeCount", Json.of(0))
+    Json.set(err, "lastCommitAgo", Json.of(""))
+    Json.set(err, "commitTypes", JArr(ArrayList<JsonValue>()))
     Json.set(err, "branches", JArr(ArrayList<JsonValue>()))
     Json.set(err, "journal", JArr(ArrayList<JsonValue>()))
     return err

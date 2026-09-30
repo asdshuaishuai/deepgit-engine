@@ -195,6 +195,10 @@ func readRequest(socket: TcpSocket): Option<HttpRequest> {
             }
         case None => 0
     }
+    if (contentLength > 1048576) {
+        // API 全部是小 JSON：超 1MB 直接拒绝（防 Content-Length OOM 杀进程）
+        return None
+    }
     if (contentLength > 0) {
         var bodyBytes = ArrayList<UInt8>()
         let already = raw.size - (headerEnd + 4)
@@ -244,6 +248,44 @@ func handleConnection(socket: TcpSocket, webRoot: String, config: Config): Unit 
         case None =>
             writeResponse(socket, 400, "application/json", "{\"error\":\"bad request\"}", true, "")
         case Some(req) =>
+            // 本地单用户服务：Host 主机名必须是回环（挡 LAN 直连、DNS rebinding、浏览器跨源）。
+            // 端口宽松：serve 可用 --port 覆盖 config.serverPort，Host 端口必然是实际监听端口
+            let hostOpt = req.headers.get("host")
+            let hostFull = match (hostOpt) {
+                case Some(h) => h.toAsciiLower()
+                case None => ""
+            }
+            var host = hostFull
+            if (host.startsWith("[")) {
+                // IPv6 [::1]:port
+                let closeIdx = host.indexOf("]")
+                if (closeIdx.isSome()) {
+                    host = host[..closeIdx.getOrThrow() + 1]
+                }
+            } else {
+                let colon = host.indexOf(":")
+                if (colon.isSome()) {
+                    host = host[..colon.getOrThrow()]
+                }
+            }
+            let allowed = host.isEmpty() || host == "127.0.0.1" || host == "localhost" || host == "[::1]" || host == "::1"
+            if (!allowed) {
+                writeResponse(socket, 403, "application/json", "{\"error\":\"forbidden host\"}", false, "")
+                return
+            }
+            // 浏览器驱动写操作防御：本机 CLI 子进程不发 Origin 头；
+            // 网页跨源 fetch 必带 Origin（text/plain 简单请求可绕预检，必须在这里拦）
+            if (req.method == "POST") {
+                let originOpt = req.headers.get("origin")
+                match (originOpt) {
+                    case Some(o) =>
+                        if (o != "") {
+                            writeResponse(socket, 403, "application/json", "{\"error\":\"cross-origin blocked\"}", false, "")
+                            return
+                        }
+                    case None => ()
+                }
+            }
             route(socket, req, webRoot, config)
     }
 }
@@ -779,8 +821,9 @@ func writeResponse(socket: TcpSocket, status: Int64, contentType: String, body: 
     sb.append("Content-Type: ${contentType}\r\n")
     sb.append("Content-Length: ${bodyBytes.size}\r\n")
     sb.append("Connection: close\r\n")
+    // 安全决策：本地原生客户端（CLI 子进程）不需要 CORS；
+    // 开放 ACAO:* 等于让任意网页跨源读写（text/plain 简单请求可绕预检验证写操作）
     if (cors) {
-        sb.append("Access-Control-Allow-Origin: *\r\n")
         sb.append("Access-Control-Allow-Methods: GET, POST, OPTIONS\r\n")
         sb.append("Access-Control-Allow-Headers: Content-Type\r\n")
     }

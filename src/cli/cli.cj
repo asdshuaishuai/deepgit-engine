@@ -155,6 +155,7 @@ public func main2(argv: ArrayList<String>): Int64 {
         case "dashboard" => return cmdDashboard(rest, ctx)
         case "mcp" => return mcpRun()
         case "context" => return cmdContext(rest, ctx)
+        case "docs" => return cmdDocs(rest, ctx)
         case "tools" => return cmdTools(rest, ctx)
         case "skill" => return cmdSkill(rest, ctx)
         case "report" => return cmdReport(rest, ctx)
@@ -171,7 +172,7 @@ let HOOK_KINDS: Array<String> = ["post-commit", "post-merge"]
 /// 所有带值的 flag（positionalsOnly 据此跳过 flag 及其值，避免值被当成位置参数）
 let VALUE_FLAGS: Array<String> = [
     "--name", "--depth", "--docs", "--scope", "--branch", "--port",
-    "--source", "--tag", "--date", "--desc", "--out", "--message",
+    "--source", "--tag", "--date", "--desc", "--out", "--message", "--budget",
 ]
 
 func cmdGit(rest: ArrayList<String>, ctx: CliContext): Int64 {
@@ -434,6 +435,32 @@ func cmdReport(rest: ArrayList<String>, ctx: CliContext): Int64 {
 }
 
 
+func cmdDocs(rest: ArrayList<String>, ctx: CliContext): Int64 {
+    let refs = positionalsOnly(rest, VALUE_FLAGS)
+    let config = loadConfig()
+    let reg = loadRegistry()
+    let targets = ArrayList<ProjectEntry>()
+    if (refs.size > 0) {
+        targets.add(requireProject(refs[0]))
+    } else {
+        for (p in reg.projects) {
+            if (!p.disabled) {
+                targets.add(p)
+            }
+        }
+    }
+    let arr = ArrayList<JsonValue>()
+    for (p in targets) {
+        for (d in readProjectDocs(p.path, config)) {
+            arr.add(d.toJson())
+        }
+    }
+    let o = Json.obj()
+    Json.set(o, "docs", JArr(arr))
+    printOut(Json.pretty(o))
+    return 0
+}
+
 func cmdContext(rest: ArrayList<String>, ctx: CliContext): Int64 {
     let refs = positionalsOnly(rest, VALUE_FLAGS)
     var budget: Int64 = AGENT_DEFAULT_BUDGET
@@ -587,10 +614,12 @@ func printHelp(): Unit {
     printOut("  update [项目] [--docs S]  浅更新：记录各分支进度 + 刷新文档进度区域")
     printOut("  deep [项目] [--scope S]   深度更新：重写 overview/architecture/commands/history")
     printOut("  journal [项目] [--branch B]  查看进度日志")
+    printOut("  git <pull|push|commit|stash|unstash|fetch> [项目] [--message M]")
     printOut("  hook <install|uninstall|status> [项目]  管理 post-commit 钩子")
     printOut("  milestone <add|list|done|drop|remove> …  里程碑管理")
     printOut("  dashboard                跨项目聚合仪表盘（活跃度/里程碑/语言分布）")
     printOut("  context [项目] [--budget N]  输出 agent 上下文包（markdown，budget=字符预算）")
+    printOut("  docs [项目]                输出项目 README/AGENTS/CLAUDE 原文（--json）")
     printOut("  tools                    输出 agent 工具清单（JSON）")
     printOut("  mcp                      以 MCP 服务器运行（stdio JSON-RPC；供 Claude 等 agent 宿主接入）")
     printOut("  skill <print|install>    输出/安装 agent Skill 教学包（--dir 指定目录）")
@@ -809,15 +838,14 @@ func cmdStatus(rest: ArrayList<String>, ctx: CliContext): Int64 {
         return 0
     }
     if (ctx.json) {
+        // 恒定 envelope 形状：单项目/零项目也与多项目一致（客户端契约）
         let statuses = allProjectStatuses(targets, config, false)
-        if (statuses.size == 1) {
-            printOut(Json.pretty(statuses[0]))
-        } else {
-            let o = Json.obj()
-            Json.set(o, "projects", JArr(statuses))
+        let o = Json.obj()
+        Json.set(o, "projects", JArr(statuses))
+        if (statuses.size > 0) {
             Json.set(o, "summary", groupSummary(statuses, config))
-            printOut(Json.pretty(o))
         }
+        printOut(Json.pretty(o))
         return 0
     }
     if (targets.size == 1) {

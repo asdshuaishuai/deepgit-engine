@@ -175,6 +175,20 @@ open deepGit.app --args --open-panel    # 启动即开主面板（--project X �
 
 项目 ID = `p_` + SHA-256(规范化绝对路径) 前 12 位，路径不变则 ID 稳定。
 
+## 安全与并发基线（2026-09-30 全域对抗审查后立约）
+
+- **HTTP 服务绑定面**：std.net 的 TcpServerSocket 无绑定地址参数（绑 wildcard `0.0.0.0`），
+  无法只听 127.0.0.1。已部署三层防御：Host 主机名必须回环（挡 LAN/DNS rebinding）、
+  POST 带 Origin 头一律 403（挡浏览器跨源写——text/plain 简单请求可绕预检）、
+  body 上限 1MB（挡 Content-Length OOM）。**改 http.cj 时不得移除这三道检查**。
+- **execCapture 超时路径的已知限制**：Cangjie SubProcess 不暴露 pid、无 kill API，
+  超时后子进程无法回收（泄漏 1 进程+2 线程+管道 FD）。volumeAccessible 已加 60s
+  结果缓存使泄漏有界。若未来 Cangjie 暴露终止 API，立即在 TimeoutException 分支补 kill。
+- **锁纪律**：同一项目的 track/update/deep 共用 `project.lock`（历史上有三把锁名导致
+  钩子+手动并发丢进度条目，已统一）。新增写路径必须 withLock(project.lock)。
+- **status --json 恒定 envelope** `{projects:[], summary?}`（单项目/零项目同形状）；
+  errorStatusJson 必须补齐客户端 ProjectStatus 的全部非可选键（缺一个键整个面板解码失败）。
+
 ## 已知边界
 
 - SHA-256 自研（通过官方测试向量），**不用于密码学安全场景**。

@@ -151,8 +151,17 @@ public func prettyPath(p: String, maxLen: Int64): String {
 /// 确保目录存在
 public func ensureDir(dir: String): Unit {
     let p = Path(dir)
-    if (!exists(p)) {
+    if (exists(p)) {
+        return
+    }
+    try {
         Directory.create(p, recursive: true)
+    } catch (e: Exception) {
+        // 并发创建竞态（如钩子 track 与手动 update 同时首跑）：
+        // 已存在视为成功，其余异常向上抛
+        if (!exists(p)) {
+            throw e
+        }
     }
 }
 

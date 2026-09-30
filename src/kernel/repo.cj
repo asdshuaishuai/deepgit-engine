@@ -389,19 +389,44 @@ func countChar(s: String, ch: Byte): Int64 {
 
 let MANIFEST_FILES = ["package.json", "moon.mod.json", "Cargo.toml", "Package.swift", "pyproject.toml", "go.mod", "pubspec.yaml", "pom.xml", "cjpm.toml"]
 
-/// 卷可达性预检：外置卷在 macOS TCC 未授权时 open 会无限阻塞，
-/// 这里用短超时 stat 探测，把「永久挂起」变成 1.5s 内的明确报错。
+// 缓存：TCC 场景每次 stat 都要吃满超时并泄漏一个 stat 子进程（SubProcess 无 kill API），
+// 缓存让长驻服务（serve/mcp）的泄漏有界且大幅加速
+let volumeCache = HashMap<String, (Bool, Int64)>()
+let VOLUME_CACHE_TTL: Int64 = 60000
+
+/// 卷可达性预检：区分「路径不存在」与「TCC 访问阻塞（超时）」。
+/// 返回 (可达, 是否超时)；结果缓存 60s。
+public func volumeAccessibleEx(path: String): (Bool, Bool) {
+    let now = nowMillis()
+    match (volumeCache.get(path)) {
+        case Some((ok, at)) =>
+            if (now - at < VOLUME_CACHE_TTL) {
+                return (ok, false)
+            }
+        case None => ()
+    }
+    let r = execCapture("stat", [path], None, 1200)
+    let ok = r.ok() && !r.timedOut
+    volumeCache[path] = (ok, now)
+    return (ok, r.timedOut)
+}
+
 public func volumeAccessible(path: String): Bool {
-    let r = execCapture("stat", [path], None, 1500)
-    return r.ok() && !r.timedOut
+    let (ok, _) = volumeAccessibleEx(path)
+    return ok
 }
 
 public func collectFacts(root: String, kind: String, config: Config, commits: Int64, deep: Bool): RepoFacts {
     if (kind != "git") {
         return collectDirFacts(root, config)
     }
-    if (!volumeAccessible(root)) {
-        let hint = "无法访问 ${root} —— 很可能是 macOS 未授予「可移除宗卷」访问权限（系统设置 → 隐私与安全性 → 文件与文件夹 → deepGit）"
+    let (accessible, timedOut) = volumeAccessibleEx(root)
+    if (!accessible) {
+        let hint = if (timedOut) {
+            "无法访问 ${root} —— 访问被持续阻塞，很可能是 macOS 未授予「可移除宗卷」访问权限（系统设置 → 隐私与安全性 → 文件与文件夹 → deepGit）"
+        } else {
+            "路径不存在或卷未挂载：${root}"
+        }
         throw DgError("VOLUME_BLOCKED", hint, 1, None)
     }
 
