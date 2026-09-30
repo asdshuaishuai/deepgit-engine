@@ -153,6 +153,10 @@ public func main2(argv: ArrayList<String>): Int64 {
         case "milestone" => return cmdMilestone(rest, ctx)
         case "git" => return cmdGit(rest, ctx)
         case "dashboard" => return cmdDashboard(rest, ctx)
+        case "mcp" => return mcpRun()
+        case "context" => return cmdContext(rest, ctx)
+        case "tools" => return cmdTools(rest, ctx)
+        case "skill" => return cmdSkill(rest, ctx)
         case "report" => return cmdReport(rest, ctx)
         case _ =>
             Log.error("未知命令：${command}")
@@ -429,6 +433,100 @@ func cmdReport(rest: ArrayList<String>, ctx: CliContext): Int64 {
     return 0
 }
 
+
+func cmdContext(rest: ArrayList<String>, ctx: CliContext): Int64 {
+    let refs = positionalsOnly(rest, VALUE_FLAGS)
+    var budget: Int64 = AGENT_DEFAULT_BUDGET
+    match (flagValue(rest, "--budget")) {
+        case Some(v) =>
+            try {
+                budget = Int64.parse(v)
+            } catch (e: Exception) {
+                throw DgError.usage("--budget 需要整数：${v}")
+            }
+        case None => ()
+    }
+    let config = loadConfig()
+    let reg = loadRegistry()
+    let scope = if (refs.size > 0) { "project" } else { "group" }
+    let target = if (refs.size > 0) { refs[0] } else { "" }
+    let text = buildAgentContext(reg.projects, config, scope, target, budget)
+    if (ctx.json) {
+        let o = Json.obj()
+        Json.set(o, "scope", Json.of(scope))
+        Json.set(o, "budget", Json.of(budget))
+        Json.set(o, "context", Json.of(text))
+        printOut(Json.pretty(o))
+    } else {
+        printOut(text)
+    }
+    return 0
+}
+
+func cmdTools(rest: ArrayList<String>, ctx: CliContext): Int64 {
+    printOut(Json.pretty(agentToolsManifest()))
+    return 0
+}
+
+let SKILL_FRONTMATTER = "---\nname: deepgit\ndescription: 用 deepGit 引擎管理本地 git 项目群的进度：查现状、记进度、浅/深更新文档、git 操作、里程碑。适用于任何关于本地项目状态、分支进度、项目文档维护的问题。\n---\n\n"
+
+func skillMarkdown(): String {
+    let engine = currentExecutable()
+    let sb = StringBuilder()
+    sb.append(SKILL_FRONTMATTER)
+    sb.append("# deepGit — 本地项目群进度引擎（agent 使用指南）\n\n")
+    sb.append("deepGit 是 **AI 无关** 的确定性内核：它提供事实与动作，你（agent）负责理解与表达。\n\n")
+    sb.append("## 三种接入方式（按场景选）\n\n")
+    sb.append("1. **MCP 服务器**（推荐，工具化接入）。宿主配置：\n")
+    sb.append("   ```json\n")
+    sb.append("   {\"mcpServers\": {\"deepgit\": {\"command\": \"" + engine + "\", \"args\": [\"mcp\"]}}}\n")
+    sb.append("   ```\n")
+    sb.append("   工具：list_projects / get_project_context / get_project_status / get_dashboard / get_project_docs / get_journal / run_shallow_update / run_deep_update / run_track / git_op / list_milestones / milestone_add / milestone_action / add_project\n\n")
+    sb.append("2. **CLI**（一次性问答/脚本）：`" + engine + " status --json`、`context [项目] --budget N`、`tools`、`journal <项目>`、`dashboard --json`\n\n")
+    sb.append("3. **HTTP API**（`deepgit serve` 后）：`GET /api/context`、`GET /api/tools`、`POST /api/update?name=`\n\n")
+    sb.append("## 典型任务配方\n\n")
+    sb.append("- **项目现状**：get_project_context(name) → 直接总结；要历史再 get_journal\n")
+    sb.append("- **项目群周报**：get_group_context → get_dashboard → 按「活跃/风险/建议」输出\n")
+    sb.append("- **收尾打扫**：git_op(op=commit, message=…) 提交未提交改动 → run_shallow_update 记进度\n")
+    sb.append("- **项目说明文档**：get_project_context + get_project_docs → 生成 markdown 说明\n\n")
+    sb.append("## 红线\n\n")
+    sb.append("- git_op 只允许白名单操作（pull/push/commit/stash/unstash/fetch），没有 reset/clean/force-push\n")
+    sb.append("- 文档更新只发生 deepGit 托管区域内（引擎保证），用户内容逐字节保留\n")
+    sb.append("- 引擎是 AI 无关的：所有判断与表达由你完成，引擎只提供事实\n")
+    return sb.toString()
+}
+
+func cmdSkill(rest: ArrayList<String>, ctx: CliContext): Int64 {
+    let refs = positionalsOnly(rest, VALUE_FLAGS)
+    let action = if (refs.size > 0) { refs[0] } else { "print" }
+    let md = skillMarkdown()
+    match (action) {
+        case "print" =>
+            printOut(md)
+            return 0
+        case "install" =>
+            var dir = ""
+            match (flagValue(rest, "--dir")) {
+                case Some(v) => dir = expandHome(v)
+                case None => dir = expandHome("~/.zcode/skills/deepgit")
+            }
+            ensureDir(dir)
+            let file = dir + "/SKILL.md"
+            writeFileAtomic(file, md)
+            if (ctx.json) {
+                let o = Json.obj()
+                Json.set(o, "file", Json.of(file))
+                Json.set(o, "bytes", Json.of(md.size))
+                printOut(Json.pretty(o))
+            } else {
+                Log.ok("Skill 已安装：${file}")
+            }
+            return 0
+        case _ =>
+            throw DgError.usage("用法：deepgit skill <print|install> [--dir D]")
+    }
+}
+
 func cmdDashboard(rest: ArrayList<String>, ctx: CliContext): Int64 {
     let config = loadConfig()
     let reg = loadRegistry()
@@ -492,6 +590,10 @@ func printHelp(): Unit {
     printOut("  hook <install|uninstall|status> [项目]  管理 post-commit 钩子")
     printOut("  milestone <add|list|done|drop|remove> …  里程碑管理")
     printOut("  dashboard                跨项目聚合仪表盘（活跃度/里程碑/语言分布）")
+    printOut("  context [项目] [--budget N]  输出 agent 上下文包（markdown，budget=字符预算）")
+    printOut("  tools                    输出 agent 工具清单（JSON）")
+    printOut("  mcp                      以 MCP 服务器运行（stdio JSON-RPC；供 Claude 等 agent 宿主接入）")
+    printOut("  skill <print|install>    输出/安装 agent Skill 教学包（--dir 指定目录）")
     printOut("  report [项目] [--out F]  导出 Markdown 进度报告")
     printOut("  config <list|get|set> [k] [v]  配置（AI 预设等）")
     printOut("  serve [--port N] [--open]  启动本地 HTTP 服务（客户端 / API 用）")

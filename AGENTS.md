@@ -91,6 +91,13 @@ util → kernel → ai → flow → cli
   `git stash list` 要用 `--pretty=format:`（`--format=` 会把 `%x1f` 原样输出，`%1f` 也一样）。
   porcelain/相对路径里的 `/tmp` 会被 git 输出成 `/private/tmp`——路径比较一律走 `util/paths.cj` 的
   `samePath()`（词法规范化 + macOS 符号链接容忍）。
+- **MCP 服务器（cli/mcp.cj）**：`deepgit mcp` 以 stdio 单行 JSON-RPC 运行（2024-11-05）。
+  工具执行直连 flow/kernel 层（mcpCallTool），与 HTTP/CLI 同源；**stdout 是协议通道，
+  严禁 printOut 任何非协议内容**（日志恒走 stderr，MCP 模式还会 Log.setQuiet(true)）。
+  新增 agent 能力 = mcpToolList 加清单 + mcpCallTool 加分支，并同步 /api/tools（agentToolsManifest）。
+  Cangjie 注意：lambda 语法在此版本不可靠（`{ (a: T) => }` 报错），局部函数用 `func` 嵌套定义。
+- **Skill（cli.cj skillMarkdown）**：`deepgit skill print|install` 输出教学包；
+  内容改动要同步 README 的 MCP 章节。
 - **引擎保持 AI 无关（deepDesign 模式，改前必读）**：`src/ai` 包已删除——provider/prompts 不在引擎里，
   规则启发式在 `kernel/narrative.cj`。AI 的配置、调用、工具循环全部在客户端（AIProvider.swift / AgentView.swift）。
   引擎对 agent 只暴露两个喂养端点：`/api/context`（flow/agent.cj，预算内 markdown 事实包）与

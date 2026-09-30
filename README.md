@@ -24,9 +24,54 @@ deepGit Engine 用 git 自己的历史回答这两个问题：
 | **工具清单** | `GET /api/tools` | agent 可执行操作的结构化清单（10 项：读上下文/文档/日志，跑更新，git 操作，里程碑） |
 | **工具执行** | 上述工具对应的普通 API | agent 决定调用，引擎照常执行并返回结果 |
 
+## AI Agent 接入：CLI / MCP / Skill（三件套）
+
+引擎对 agent 的一等公民接口，三者同源（同一套事实与动作，AI 无关）：
+
+### 1. CLI（一次性问答与脚本）
+
+```sh
+deepgit status --json            # 全部项目状态
+deepgit context [项目] [--budget N]   # agent 上下文包（markdown，字符预算内）
+deepgit tools                    # agent 工具清单（JSON）
+deepgit dashboard --json         # 项目群聚合
+```
+
+### 2. MCP 服务器（工具化接入，推荐）
+
+```sh
+deepgit mcp                      # stdio JSON-RPC（2024-11-05）
+```
+
+宿主配置示例（Claude Code / 任何 MCP 宿主）：
+
+```json
+{"mcpServers": {"deepgit": {"command": "/path/to/deepgit", "args": ["mcp"]}}}
+```
+
+提供 **15 个工具**：list_projects、get_group_context、get_project_context、get_project_status、
+get_dashboard、get_project_docs、get_journal、run_shallow_update、run_deep_update、run_track、
+git_op、list_milestones、milestone_add、milestone_action、add_project；
+另有 resources（deepgit://project/{id}）与 prompts（project_brief）。
+
+### 3. Skill（教学包，让编码类 agent 学会用引擎）
+
+```sh
+deepgit skill print              # 输出 SKILL.md 内容
+deepgit skill install            # 安装到 ~/.zcode/skills/deepgit/SKILL.md（--dir 可指定）
+```
+
+内容含：三种接入方式、工具清单、典型任务配方（项目现状/项目群周报/收尾打扫/项目说明）、红线。
+
+### 红线（三件套共有）
+
+- git 操作白名单（pull/push/commit/stash/unstash/fetch），无 reset/clean/force-push
+- 文档写入仅限 deepGit 托管区域；用户内容逐字节保留
+- 引擎只提供事实与动作；判断与表达由 agent 完成
+
 上层 AI 实现（deepGit.app 内置「AI 助手」，或未来的独立 agent 层）负责：
-provider 配置（key 存本机钥匙串）、prompt 组装、工具调用循环、答案渲染——
-与 deepDesign 之于 moonviz 的分层完全同构。
+**models.dev 目录选型、provider 通道（ai-sdk 风格，原生 tool_calls）**、
+prompt 组装、工具调用循环、答案渲染——与 deepDesign 之于 moonviz 的分层完全同构。
 
 ---
 
