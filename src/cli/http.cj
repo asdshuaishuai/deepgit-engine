@@ -416,18 +416,9 @@ func handleApi(socket: TcpSocket, req: HttpRequest, config: Config): Unit {
         return
     }
 
-    // GET /api/config（脱敏：不返回密钥）
+    // GET /api/config
     if (path == "/api/config") {
-        let j = configToJson(config)
-        let ai = Json.getOr(j, "ai")
-        Json.set(ai, "apiKey", Json.of(""))
-        let resolved = resolveAi(config)
-        Json.set(ai, "configured", Json.of(resolved.configured))
-        Json.set(ai, "statusReason", Json.of(resolved.reason))
-        if (resolved.configured) {
-            Json.set(ai, "effectiveModel", Json.of(resolved.model))
-        }
-        sendJson(socket, 200, j)
+        sendJson(socket, 200, configToJson(config))
         return
     }
 
@@ -517,6 +508,41 @@ func handleApi(socket: TcpSocket, req: HttpRequest, config: Config): Unit {
             case None =>
                 sendJson(socket, 404, errJson("PROJECT_NOT_FOUND", "未找到项目：${name}"))
         }
+        return
+    }
+
+    // GET /api/context — agent 上下文包（预算内 markdown）。scope=group|project&name=&budget=
+    if (path == "/api/context" && method == "GET") {
+        let scope = req.param("scope")
+        let name = req.param("name")
+        var budget = AGENT_DEFAULT_BUDGET
+        let budgetStr = req.param("budget")
+        if (!budgetStr.isEmpty()) {
+            try {
+                budget = Int64.parse(budgetStr)
+            } catch (e: Exception) {
+                budget = AGENT_DEFAULT_BUDGET
+            }
+            if (budget < 500) {
+                budget = 500
+            }
+            if (budget > 200000) {
+                budget = 200000
+            }
+        }
+        let reg = loadRegistry()
+        let ctxText = buildAgentContext(reg.projects, config, if (scope.isEmpty()) { "group" } else { scope }, name, budget)
+        let o = Json.obj()
+        Json.set(o, "scope", Json.of(if (scope.isEmpty()) { "group" } else { scope }))
+        Json.set(o, "budget", Json.of(budget))
+        Json.set(o, "context", Json.of(ctxText))
+        sendJson(socket, 200, o)
+        return
+    }
+
+    // GET /api/tools — agent 可执行工具清单
+    if (path == "/api/tools" && method == "GET") {
+        sendJson(socket, 200, agentToolsManifest())
         return
     }
 

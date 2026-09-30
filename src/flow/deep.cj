@@ -5,7 +5,6 @@ import std.collection.*
 import std.fs.*
 import std.unittest.*
 import std.unittest.testmacro.*
-import deepgit.ai.*
 import deepgit.kernel.*
 import deepgit.util.*
 
@@ -23,8 +22,6 @@ public class DeepResult {
     public let projectId: String
     public let projectName: String
     public let provider: String
-    public let aiConfigured: Bool
-    public let aiError: String
     public let highlights: ArrayList<String>
     public let docChanges: ArrayList<(String, Bool, Bool, String)>
     public let journalEntry: JsonValue
@@ -32,16 +29,14 @@ public class DeepResult {
     public let at: String
 
     public init(
-        ok: Bool, projectId: String, projectName: String, provider: String, aiConfigured: Bool,
-        aiError: String, highlights: ArrayList<String>, docChanges: ArrayList<(String, Bool, Bool, String)>,
+        ok: Bool, projectId: String, projectName: String, provider: String,
+        highlights: ArrayList<String>, docChanges: ArrayList<(String, Bool, Bool, String)>,
         journalEntry: JsonValue, facts: RepoFacts, at: String,
     ) {
         this.ok = ok
         this.projectId = projectId
         this.projectName = projectName
         this.provider = provider
-        this.aiConfigured = aiConfigured
-        this.aiError = aiError
         this.highlights = highlights
         this.docChanges = docChanges
         this.journalEntry = journalEntry
@@ -60,57 +55,12 @@ public func runDeep(project: ProjectEntry, config: Config, opts: DeepOptions): D
         let facts = collectFacts(project.path, project.kind, config, 60, true)
         var progress = readProgress(project.id)
 
-        let ai = resolveAi(config)
-        var provider = "rules"
-        var aiError = ""
+        // 章节内容：规则引擎确定性渲染。引擎是 AI 无关的——
+        // LLM 增强由上层 AI 实现（deepGit.app）基于 /api/context 自行完成。
+        let provider = "rules"
         var highlights = ArrayList<String>()
-
-        // 章节内容（先填规则兜底）
-        let (fbOverview, fbHistory, fbArch, fbCmds) = rulesDeepSections(facts, progress, config.language)
-        var readmeOverview = fbOverview
-        var readmeHistory = fbHistory
-        var agentOverview = fbOverview
-        var agentArch = fbArch
-        var agentCmds = fbCmds
-
-        if (ai.configured) {
-            Log.step("调用 AI 生成深度文档（${ai.model}）")
-            var factsJson = facts.toJson()
-            let maxInput = if (config.aiMaxInputChars > 60000) { config.aiMaxInputChars - 15000 } else { config.aiMaxInputChars }
-            let (fitted, fitNotes) = fitFactsJson(factsJson, maxInput, true)
-            if (fitNotes.size > 0) {
-                Log.debug("提示词裁剪：${joinStrings(fitNotes, "；")}")
-            }
-            let digest = buildHistoryDigest(facts)
-            let (system, user) = buildDeepPrompt(facts, progress, opts.scope, config.language, digest)
-            // 用裁剪后的事实替换提示词中的完整事实
-            let userFitted = replaceFactsInPrompt(user, Json.pretty(fitted))
-            match (aiChatJson(ai, system, userFitted, "")) {
-                case Some(j) =>
-                    provider = ai.label()
-                    let readmePart = Json.getOr(j, "readme")
-                    let agentPart = Json.getOr(j, "agent")
-                    readmeOverview = pickSection(Json.strAt(readmePart, "overview", ""), fbOverview)
-                    readmeHistory = pickSection(Json.strAt(readmePart, "history", ""), fbHistory)
-                    agentOverview = pickSection(Json.strAt(agentPart, "overview", ""), fbOverview)
-                    agentArch = pickSection(Json.strAt(agentPart, "architecture", ""), fbArch)
-                    agentCmds = pickSection(Json.strAt(agentPart, "commands", ""), fbCmds)
-                    let hl = Json.strArrAt(j, "highlights")
-                    var i: Int64 = 0
-                    for (h in hl) {
-                        if (i >= 6) {
-                            break
-                        }
-                        highlights.add(oneLine(h))
-                        i += 1
-                    }
-                case None =>
-                    aiError = "AI 返回无法解析为 JSON"
-                    Log.warn("AI 深度生成失败，回退规则渲染：${aiError}")
-            }
-        } else {
-            Log.info(ai.reason)
-        }
+        let (readmeOverview, readmeHistory, agentArch, agentCmds) = rulesDeepSections(facts, progress, config.language)
+        let agentOverview = readmeOverview
 
         // 进度区域也刷新（deep 隐含 shallow）
         let progressReadme = renderProgressReadme(
@@ -225,7 +175,7 @@ public func runDeep(project: ProjectEntry, config: Config, opts: DeepOptions): D
         }
 
         return DeepResult(
-            true, project.id, project.name, provider, ai.configured, aiError,
+            true, project.id, project.name, provider,
             highlights, docChanges, entry, facts, startedAt,
         )
     })

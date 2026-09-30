@@ -1,6 +1,6 @@
 # deepGit Engine
 
-**基于 git 历史的本地项目群进度引擎（跨平台核心）。**
+**基于 git 历史的本地项目群进度引擎（跨平台核心，AI 无关）。**
 
 AI 开发时代，最容易丢失的不是代码，而是**进度和文档**——人和 AI 都会忘记「这个分支做到哪了」「README 是否还准」。
 deepGit Engine 用 git 自己的历史回答这两个问题：
@@ -11,7 +11,22 @@ deepGit Engine 用 git 自己的历史回答这两个问题：
 
 > 文档更新只改写 deepGit 自己标记的区域，**其余内容逐字节保留**；写入前自动备份。
 
-配套客户端（菜单栏常驻 + 管理面板）见 [deepgit-clients](https://github.com/asdshuaishuai/deepgit-clients) 仓库。
+配套客户端（菜单栏常驻 + 管理面板 + **AI 层**）见 [deepgit-clients](https://github.com/asdshuaishuai/deepgit-clients) 仓库。
+
+## AI 架构（deepDesign 模式）
+
+引擎是 **AI 无关** 的确定性内核：不含任何 LLM 调用，也不持有 AI 配置。
+它为上层 agent **提供所需的一切**：
+
+| 提供 | 端点 | 说明 |
+|---|---|---|
+| **上下文包** | `GET /api/context?scope=group\|project&name=&budget=` | 预算内（字符数）的 markdown 事实摘要：总览/脉搏/分支表/日志/里程碑 |
+| **工具清单** | `GET /api/tools` | agent 可执行操作的结构化清单（10 项：读上下文/文档/日志，跑更新，git 操作，里程碑） |
+| **工具执行** | 上述工具对应的普通 API | agent 决定调用，引擎照常执行并返回结果 |
+
+上层 AI 实现（deepGit.app 内置「AI 助手」，或未来的独立 agent 层）负责：
+provider 配置（key 存本机钥匙串）、prompt 组装、工具调用循环、答案渲染——
+与 deepDesign 之于 moonviz 的分层完全同构。
 
 ---
 
@@ -117,14 +132,10 @@ deepgit doctor                    环境自检
 5. **非 git 目录降级但不放弃**：用文件 mtime 追踪并明确标注「非 git 模式」。
 6. **零第三方依赖**：外部依赖只有系统 `git` 与 `curl`（AI 调用走 curl）。
 
-## 配置 AI（可选）
+## 叙述生成
 
-```sh
-export DEEPGIT_AI_API_KEY=sk-...        # 或 DEEPSEEK_API_KEY / OPENAI_API_KEY / ANTHROPIC_API_KEY
-deepgit config set ai.preset deepseek   # deepseek | openai | anthropic | ollama | custom
-```
-
-不配 AI 也能用（内置规则引擎按提交前缀/关键词归类）；AI 失败自动降级，不中断更新。
+浅/深更新的摘要与章节由内置**规则引擎**（确定性启发式：提交前缀分类、分支名归类）生成，
+不依赖任何 LLM。要 AI 增强？在上层客户端里问 AI 助手，或让它驱动引擎工具——引擎只提供事实与动作。
 
 ## 项目结构
 

@@ -1,10 +1,11 @@
-// 规则引擎（无 AI 时的降级）：基于提交前缀与分支名的启发式摘要。
-package deepgit.ai
+// 叙述规则引擎：确定性的提交分类与摘要启发式。
+// 引擎是 AI 无关的——LLM 增强由上层 AI 实现（deepGit.app）通过引擎的
+// 上下文（/api/context）与工具（/api/tools）接口完成。
+package deepgit.kernel
 
 import std.collection.*
 import std.unittest.*
 import std.unittest.testmacro.*
-import deepgit.kernel.*
 import deepgit.util.*
 
 let TYPE_PATTERNS: Array<(String, String)> = [

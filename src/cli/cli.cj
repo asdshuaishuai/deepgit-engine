@@ -860,7 +860,6 @@ func cmdUpdate(rest: ArrayList<String>, ctx: CliContext): Int64 {
         case None => ()
     }
     let dryRun = hasFlag(rest, "--dry-run")
-    let noAi = hasFlag(rest, "--no-ai")
     var notes = ArrayList<String>()
     match (flagValue(rest, "--note")) {
         case Some(n) => notes.add(n)
@@ -874,7 +873,6 @@ func cmdUpdate(rest: ArrayList<String>, ctx: CliContext): Int64 {
             opts.mode = "shallow"
             opts.docs = docs
             opts.dryRun = dryRun
-            opts.noAi = noAi
             opts.source = "cli"
             opts.notes = notes
             let result = runUpdate(p, config, opts)
@@ -887,9 +885,6 @@ func cmdUpdate(rest: ArrayList<String>, ctx: CliContext): Int64 {
                     if (changed) {
                         Log.info("  · ${file}${if (created) { "（新建）" } else { "" }}")
                     }
-                }
-                if (result.aiError.size > 0) {
-                    Log.warn("  AI 失败已降级：${result.aiError}")
                 }
             }
         } catch (e: Exception) {
@@ -947,9 +942,6 @@ func cmdDeep(rest: ArrayList<String>, ctx: CliContext): Int64 {
                         Log.info("  - ${h}")
                     }
                 }
-                if (result.aiError.size > 0) {
-                    Log.warn("  AI 失败已降级：${result.aiError}")
-                }
             }
         } catch (e: Exception) {
             failed = true
@@ -978,10 +970,6 @@ func updateResultToJson(r: UpdateResult): JsonValue {
     Json.set(o, "project", Json.of(r.projectName))
     Json.set(o, "provider", Json.of(r.provider))
     Json.set(o, "providerLabel", Json.of(providerLabel(r.provider)))
-    Json.set(o, "aiConfigured", Json.of(r.aiConfigured))
-    if (r.aiError.size > 0) {
-        Json.set(o, "aiError", Json.of(r.aiError))
-    }
     Json.set(o, "branchCount", Json.of(r.branchCount))
     Json.set(o, "commitCount", Json.of(r.commitCount))
     let docs = ArrayList<JsonValue>()
@@ -1009,10 +997,6 @@ func deepResultToJson(r: DeepResult): JsonValue {
     Json.set(o, "project", Json.of(r.projectName))
     Json.set(o, "provider", Json.of(r.provider))
     Json.set(o, "providerLabel", Json.of(providerLabel(r.provider)))
-    Json.set(o, "aiConfigured", Json.of(r.aiConfigured))
-    if (r.aiError.size > 0) {
-        Json.set(o, "aiError", Json.of(r.aiError))
-    }
     let hl = ArrayList<JsonValue>()
     for (h in r.highlights) {
         hl.add(Json.of(h))
@@ -1204,22 +1188,11 @@ func cmdConfig(rest: ArrayList<String>, ctx: CliContext): Int64 {
             printOut(Json.pretty(configToJson(cfg)))
             return 0
         }
-        let ai = resolveAi(cfg)
         printOut("语言：${cfg.language}")
         printOut("扫描根：${if (cfg.roots.size == 0) { "（未设置）" } else { joinStrings(cfg.roots, ", ") } }")
         printOut("文档：${joinStrings(cfg.docs, ", ")}")
         printOut("分支上限：${cfg.maxShallowBranches}")
-        printOut("AI 预设：${cfg.aiPreset}${if (cfg.aiModel.size > 0) { "（${cfg.aiModel}）" } else { "" }}")
-        let keyState = if (ai.configured) { "已配置" } else { "未配置" }
-        printOut("AI 状态：${keyState}")
-        match (ai.apiKeySource) {
-            case Some(src) => printOut("密钥来源：${src}")
-            case None => ()
-        }
-        if (!ai.configured) {
-            printOut("")
-            printOut("提示：设置环境变量 DEEPGIT_AI_API_KEY，或 ${ai.reason}")
-        }
+        printOut("AI：由客户端层负责（deepGit.app 设置），引擎保持 AI 无关")
         return 0
     }
     if (sub[0] == "get") {
@@ -1252,10 +1225,6 @@ func cmdConfig(rest: ArrayList<String>, ctx: CliContext): Int64 {
 func configGetValue(cfg: Config, key: String): JsonValue {
     match (key) {
         case "language" => return Json.of(cfg.language)
-        case "ai.preset" => return Json.of(cfg.aiPreset)
-        case "ai.model" => return Json.of(cfg.aiModel)
-        case "ai.baseUrl" => return Json.of(cfg.aiBaseUrl)
-        case "ai.provider" => return Json.of(cfg.aiProvider)
         case "update.backupKeep" => return Json.of(cfg.backupKeep)
         case "update.maxShallowBranches" => return Json.of(cfg.maxShallowBranches)
         case "server.port" => return Json.of(cfg.serverPort)
@@ -1269,23 +1238,6 @@ func configSetValue(cfg: Config, key: String, value: String): Config {
     match (key) {
         case "language" =>
             cfg.language = value
-        case "ai.preset" =>
-            cfg.aiPreset = value
-            // 同步更新 baseUrl/model（若用户没显式覆盖）
-            if (value != "auto") {
-                let p = findPreset(value)
-                if (cfg.aiBaseUrl.size == 0) {
-                    cfg.aiBaseUrl = p.baseUrl
-                }
-                if (cfg.aiModel.size == 0) {
-                    cfg.aiModel = p.model
-                }
-                cfg.aiProvider = p.provider
-            }
-        case "ai.model" => cfg.aiModel = value
-        case "ai.baseUrl" => cfg.aiBaseUrl = value
-        case "ai.provider" => cfg.aiProvider = value
-        case "ai.apiKey" => cfg.aiApiKey = value
         case "update.backupKeep" => cfg.backupKeep = parseInt(value, cfg.backupKeep)
         case "update.maxShallowBranches" => cfg.maxShallowBranches = parseInt(value, cfg.maxShallowBranches)
         case "server.port" => cfg.serverPort = parseInt(value, cfg.serverPort)
@@ -1389,11 +1341,8 @@ func cmdDoctor(rest: ArrayList<String>, ctx: CliContext): Int64 {
     let gitOk = commandExists("git")
     checks.add(["git", if (gitOk) { "OK" } else { "缺失" }, if (gitOk) { gitRun(".", ["--version"], true) } else { "需要安装 git" }])
     let curlOk = commandExists("curl")
-    checks.add(["curl", if (curlOk) { "OK" } else { "缺失" }, if (curlOk) { "（AI 调用需要）" } else { "AI 调用需要 curl" }])
+    checks.add(["curl", if (curlOk) { "OK" } else { "缺失" }, "部分操作可用性探测"])
     checks.add(["数据目录", if (isDirectoryPath(deepgitHome())) { "OK" } else { "未创建" }, deepgitHome()])
-    let cfg = loadConfig()
-    let ai = resolveAi(cfg)
-    checks.add(["AI", if (ai.configured) { "已配置" } else { "未配置" }, ai.reason])
     let reg = loadRegistry()
     checks.add(["注册项目", "${reg.projects.size}", "用 `deepgit scan` 添加"])
     let missing = ArrayList<String>()

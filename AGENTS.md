@@ -1,6 +1,6 @@
 # AGENTS.md — deepGit 工作区指南
 
-deepGit Engine：基于 git 历史的本地项目群进度引擎（跨平台核心）。**100% 仓颉实现，零第三方依赖**（JSON/SHA-256/HTTP 服务/Markdown 渲染全部自研）。
+deepGit Engine：基于 git 历史的本地项目群进度引擎（跨平台核心，**AI 无关**）。**100% 仓颉实现，零第三方依赖**（JSON/SHA-256/HTTP 服务/Markdown 渲染全部自研）。
 外部依赖只有系统 `git` 与 `curl`。本仓库是引擎；各平台 UI 层在 deepgit-clients 仓库（macOS 客户端 deepGit.app 已实现：菜单栏常驻 + 主面板）。
 
 ## 构建与测试
@@ -91,6 +91,11 @@ util → kernel → ai → flow → cli
   `git stash list` 要用 `--pretty=format:`（`--format=` 会把 `%x1f` 原样输出，`%1f` 也一样）。
   porcelain/相对路径里的 `/tmp` 会被 git 输出成 `/private/tmp`——路径比较一律走 `util/paths.cj` 的
   `samePath()`（词法规范化 + macOS 符号链接容忍）。
+- **引擎保持 AI 无关（deepDesign 模式，改前必读）**：`src/ai` 包已删除——provider/prompts 不在引擎里，
+  规则启发式在 `kernel/narrative.cj`。AI 的配置、调用、工具循环全部在客户端（AIProvider.swift / AgentView.swift）。
+  引擎对 agent 只暴露两个喂养端点：`/api/context`（flow/agent.cj，预算内 markdown 事实包）与
+  `/api/tools`（工具清单）。**往引擎里加 LLM 调用 = 违反架构**；要让 agent 能做新动作，加引擎工具 + 更新清单即可。
+  注意 `cjpm test` 不重建 release——改了路由必须 `cjpm build` 后再装，否则客户端内嵌引擎没有新端点。
 - **CLI 位置参数解析统一走 `VALUE_FLAGS`**（`cli/cli.cj`）：新增「带值 flag」必须加进这个名单，
   否则它的值会被当成项目名（曾导致 `hook --source hook` 静默解析失败）。
 - **`const` 不能用于数组字面量初始化**，用 `let`（如 `util/sha256.cj` 的 `SHA256_K`）。

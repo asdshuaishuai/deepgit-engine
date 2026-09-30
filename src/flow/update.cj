@@ -5,7 +5,6 @@ import std.collection.*
 import std.fs.*
 import std.unittest.*
 import std.unittest.testmacro.*
-import deepgit.ai.*
 import deepgit.kernel.*
 import deepgit.util.*
 
@@ -15,7 +14,6 @@ public class UpdateOptions {
     public var dryRun: Bool = false
     public var skipDocs: Bool = false
     public var source: String = "cli"
-    public var noAi: Bool = false
     public var notes: ArrayList<String> = ArrayList<String>()
 
     public init() {}
@@ -27,8 +25,6 @@ public class UpdateResult {
     public let projectId: String
     public let projectName: String
     public let provider: String
-    public let aiConfigured: Bool
-    public let aiError: String
     public let branchCount: Int64
     public let commitCount: Int64
     public let docChanges: ArrayList<(String, Bool, Bool, String)>
@@ -38,7 +34,7 @@ public class UpdateResult {
 
     public init(
         ok: Bool, mode: String, projectId: String, projectName: String, provider: String,
-        aiConfigured: Bool, aiError: String, branchCount: Int64, commitCount: Int64,
+        branchCount: Int64, commitCount: Int64,
         docChanges: ArrayList<(String, Bool, Bool, String)>, journalEntry: JsonValue, facts: RepoFacts, at: String,
     ) {
         this.ok = ok
@@ -46,8 +42,6 @@ public class UpdateResult {
         this.projectId = projectId
         this.projectName = projectName
         this.provider = provider
-        this.aiConfigured = aiConfigured
-        this.aiError = aiError
         this.branchCount = branchCount
         this.commitCount = commitCount
         this.docChanges = docChanges
@@ -146,54 +140,12 @@ public func runUpdate(project: ProjectEntry, config: Config, opts: UpdateOptions
             }
         }
 
-        // AI 叙述（失败降级规则引擎）
-        let ai = resolveAi(config)
+        // 叙述生成：规则引擎（确定性）。引擎是 AI 无关的——
+        // LLM 增强由上层 AI 实现（deepGit.app）基于 /api/context 自行完成。
         var narratives = HashMap<String, BranchNarrative>()
-        var provider = "rules"
-        var aiError = ""
-        var hasFresh = false
+        let provider = "rules"
         for (d in deltas) {
-            if (d.count() > 0) {
-                hasFresh = true
-            }
-        }
-        let trackedCount = progressBranches(progress).size
-        let useAi = !opts.noAi && ai.configured && (hasFresh || trackedCount == 0)
-
-        if (useAi) {
-            Log.step("调用 AI 生成进度摘要（${ai.model}）")
-            let deltasJson = branchDeltasToJson(deltas, facts)
-            let previousDocs = readPreviousDocs(project.path, facts, 1500)
-            let (system, user) = buildNarrativePrompt(facts, deltasJson, config.language, previousDocs)
-            match (aiChatJson(ai, system, user, "")) {
-                case Some(j) =>
-                    let branchesPart = Json.getOr(j, "branches")
-                    narratives = branchNarrativesFromJson(branchesPart)
-                    provider = ai.label()
-                case None =>
-                    aiError = "AI 返回无法解析为 JSON"
-                    Log.warn("AI 摘要失败，回退规则引擎：${aiError}")
-            }
-        } else if (!opts.noAi && !ai.configured) {
-            Log.debug(ai.reason)
-        } else if (opts.noAi) {
-            Log.debug("已指定 --no-ai，使用规则引擎")
-        }
-
-        // 规则引擎补齐未覆盖的分支
-        for (d in deltas) {
-            var haveAi = false
-            match (narratives.get(d.branch)) {
-                case Some(n) =>
-                    if (n.summary.size > 0) {
-                        haveAi = true
-                    }
-                case None => ()
-            }
-            if (!haveAi) {
-                let rn = rulesBranchNarrative(d, facts, config.language)
-                narratives[d.branch] = rn
-            }
+            narratives[d.branch] = rulesBranchNarrative(d, facts, config.language)
         }
 
         // 合并到进度存储
@@ -391,7 +343,7 @@ public func runUpdate(project: ProjectEntry, config: Config, opts: UpdateOptions
         }
 
         return UpdateResult(
-            true, opts.mode, project.id, project.name, provider, ai.configured, aiError,
+            true, opts.mode, project.id, project.name, provider,
             branchCount, totalCommits, docChanges, entry, facts, startedAt,
         )
     })
@@ -402,7 +354,6 @@ public func runTrack(project: ProjectEntry, config: Config, source: String): Upd
     let opts = UpdateOptions()
     opts.mode = "track"
     opts.skipDocs = true
-    opts.noAi = true
     opts.source = source
     return runUpdate(project, config, opts)
 }
@@ -490,7 +441,6 @@ func testRunUpdateOnRealRepoWithRulesEngine(): Unit {
     let config = Config.defaults()
     let opts = UpdateOptions()
     opts.mode = "shallow"
-    opts.noAi = true
     let result = runUpdate(project, config, opts)
 
     @Assert(result.ok)
@@ -543,7 +493,6 @@ func testRunUpdateDryRunDoesNotWrite(): Unit {
     let project = ProjectEntry(pid, basename(base), base, "git", "", nowIso(), ArrayList<String>(), false)
     let opts = UpdateOptions()
     opts.dryRun = true
-    opts.noAi = true
     let result = runUpdate(project, Config.defaults(), opts)
     @Assert(result.ok)
     let after = readFileTextOr(base + "/README.md", "")
