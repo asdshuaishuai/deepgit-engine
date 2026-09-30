@@ -540,6 +540,56 @@ func handleApi(socket: TcpSocket, req: HttpRequest, config: Config): Unit {
         return
     }
 
+    // POST /api/add?path=&name= — 注册单个项目
+    if (path == "/api/add" && method == "POST") {
+        let addPath = req.param("path")
+        if (addPath.isEmpty()) {
+            sendJson(socket, 400, errJson("BAD_REQUEST", "需要 path 参数"))
+            return
+        }
+        let name = req.param("name")
+        let (p, created) = addProject(addPath, name, ArrayList<String>(), "")
+        let o = Json.obj()
+        Json.set(o, "created", Json.of(created))
+        Json.set(o, "id", Json.of(p.id))
+        Json.set(o, "name", Json.of(p.name))
+        sendJson(socket, 200, o)
+        return
+    }
+
+    // POST /api/scan?root=&depth= — 批量扫描并注册
+    if (path == "/api/scan" && method == "POST") {
+        let root = req.param("root")
+        if (root.isEmpty()) {
+            sendJson(socket, 400, errJson("BAD_REQUEST", "需要 root 参数"))
+            return
+        }
+        var depth: Int64 = 2
+        let depthStr = req.param("depth")
+        if (!depthStr.isEmpty()) {
+            try {
+                depth = Int64.parse(depthStr)
+            } catch (e: Exception) {
+                depth = 2
+            }
+        }
+        let result = scanRoots(ArrayList<String>([root]), depth, true)
+        let config = loadConfig()
+        var added: Int64 = 0
+        for (c in result.candidates) {
+            let (p, created) = addProject(c.path, c.name, ArrayList<String>(), root)
+            if (created) {
+                added += 1
+            }
+        }
+        let o = Json.obj()
+        Json.set(o, "found", Json.of(result.candidates.size))
+        Json.set(o, "added", Json.of(added))
+        Json.set(o, "dirsVisited", Json.of(result.dirsVisited))
+        sendJson(socket, 200, o)
+        return
+    }
+
     // GET /api/tools — agent 可执行工具清单
     if (path == "/api/tools" && method == "GET") {
         sendJson(socket, 200, agentToolsManifest())

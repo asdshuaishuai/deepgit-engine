@@ -150,6 +150,8 @@ deepgit doctor                    环境自检
 | GET | `/api/config` | 配置（apiKey 恒为空串脱敏） |
 | POST | `/api/update`、`/api/deep`、`/api/track` | 更新动作（`?name=` 或 body） |
 | POST | `/api/git` | git 操作 `{project, op, message}`，白名单见 CLI |
+| POST | `/api/add` | 注册单个项目 `{path, name?}` |
+| POST | `/api/scan` | 批量扫描 `?root=&depth=` |
 | POST | `/api/milestones`、`/api/milestones/action` | 里程碑创建 / done\|open\|drop\|remove |
 
 `--json` CLI 与 HTTP API 输出同一套结构，键名即契约。
