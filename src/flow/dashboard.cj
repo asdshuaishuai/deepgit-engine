@@ -24,6 +24,24 @@ public func buildDashboard(projects: ArrayList<ProjectEntry>, config: Config): J
     let langCounts = ArrayList<(String, Int64)>()
     let hotProjects = ArrayList<JsonValue>()  // 近 7 天有提交的项目
 
+    // 语言分布：每项目并发采集（ls-files 是重操作，串行会在项目多时拖垮 dashboard）。
+    // 卷不可达（TCC 未授权）的项目直接跳过——否则每个 ls-files 都要等满 git 超时。
+    let langFutures = ArrayList<Future<ArrayList<(String, Int64)>>>()
+    for (p in projects) {
+        if (p.disabled || p.kind != "git" || !volumeAccessible(p.path)) {
+            continue
+        }
+        let target = p
+        langFutures.add(spawn {
+            return langStats(lsFiles(target.path, 20000), 12)
+        })
+    }
+    for (f in langFutures) {
+        for ((lang, count) in f.get()) {
+            bumpCount(langCounts, lang, count)
+        }
+    }
+
     for (s in statuses) {
         if (Json.has(s, "error")) {
             continue
@@ -41,18 +59,6 @@ public func buildDashboard(projects: ArrayList<ProjectEntry>, config: Config): J
             if (ahead > 0 && !Json.boolAt(b, "isDefault", false)) {
                 mergeCandidates += 1
             }
-        }
-
-        // 语言分布：git 项目统计跟踪文件的语言构成
-        match (projectById(projects, Json.strAt(s, "id", ""))) {
-            case Some(p) =>
-                if (p.kind == "git") {
-                    let files = lsFiles(p.path, 20000)
-                    for ((lang, count) in langStats(files, 12)) {
-                        bumpCount(langCounts, lang, count)
-                    }
-                }
-            case None => ()
         }
 
         // 近 7/30 天活跃：由 lastCommitAt 推算

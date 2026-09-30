@@ -389,9 +389,20 @@ func countChar(s: String, ch: Byte): Int64 {
 
 let MANIFEST_FILES = ["package.json", "moon.mod.json", "Cargo.toml", "Package.swift", "pyproject.toml", "go.mod", "pubspec.yaml", "pom.xml", "cjpm.toml"]
 
+/// 卷可达性预检：外置卷在 macOS TCC 未授权时 open 会无限阻塞，
+/// 这里用短超时 stat 探测，把「永久挂起」变成 1.5s 内的明确报错。
+public func volumeAccessible(path: String): Bool {
+    let r = execCapture("stat", [path], None, 1500)
+    return r.ok() && !r.timedOut
+}
+
 public func collectFacts(root: String, kind: String, config: Config, commits: Int64, deep: Bool): RepoFacts {
     if (kind != "git") {
         return collectDirFacts(root, config)
+    }
+    if (!volumeAccessible(root)) {
+        let hint = "无法访问 ${root} —— 很可能是 macOS 未授予「可移除宗卷」访问权限（系统设置 → 隐私与安全性 → 文件与文件夹 → deepGit）"
+        throw DgError("VOLUME_BLOCKED", hint, 1, None)
     }
 
     let branches = listBranches(root)

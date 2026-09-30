@@ -227,7 +227,7 @@ public func milestoneProgress(m: Milestone, repoPath: String, defaultBranch: Str
     }
     var tagReached = false
     var commitsSince: Int64 = 0
-    if (!repoPath.isEmpty()) {
+    if (!repoPath.isEmpty() && volumeAccessible(repoPath)) {
         match (revParse(repoPath, "refs/tags/" + tagName)) {
             case Some(_) => tagReached = true
             case None => ()
