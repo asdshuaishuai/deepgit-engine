@@ -2190,6 +2190,30 @@ util → kernel → ai → flow → cli
         `replace(x, 1)` 替换的是**文件里第一处**，不是你想改的那处。
       · 与不变量 77 同族：又一个「唯一出处」问题，这回在视觉层。
 
+98. **值收敛了 ≠ 收敛了 —— 每个视觉属性都有第二个维度。**
+    圆角的**值**早就收敛到 `DSRadius` 三档了（§3.3 明确要求的），判据也一直在盯
+    「不许散值复活」。但 9 处 `RoundedRectangle` 里只有 `surface` 内部写了
+    `style: .continuous`，其余 8 处是默认 **circular** ——
+    于是同一张 Card（continuous）里嵌着的 Chip / 描边 / 彩色底（circular）
+    圆角**接缝对不上**。值对了，风格分叉，判据一条都不红。
+
+    推广：
+      · 收敛一个视觉属性时把它的维度列全：**值 / 风格 / 语义 / 状态**。
+        只查值是最容易的一种查法，也最容易给人「已经收干净了」的错觉。
+      · 判据卡在**唯一构造点**上（「全库只许有一处 `RoundedRectangle`」），
+        不要逐个用法检查 —— 逐个检查既会漏，新增时也没人记得回来加。
+        唯一构造点顺带治好了「新增时无感」：冒出第二处就红。
+      · ⚠️ 唯一构造点要返回**具体类型**（`RoundedRectangle`）而不是 `some View`：
+        不透明类型进 `.overlay { }` 这类 ViewBuilder 后，编译器会崩在
+        `failed to produce diagnostic for expression`，
+        那不是语法错误，它自己都推导不出来 ⇒ 报错完全指不到真正的原因。
+      · 语义着色的表面**不要并进中性 token**：`tinted(.red.opacity(0.08))`
+        里的红是「出错」这条信息，抹成中性 surface 就把「读不出来」和
+        「确实没有」画成同一张卡了（不变量 81）。
+        它的参数必须是泛型 `ShapeStyle` 而不是 `Color` ——
+        `.quaternary` / `.secondary` 是 `HierarchicalShapeStyle`，
+        写死 `Color` 会逼调用方把层级色硬转，白丢一层语义。
+
 ## 常用命令
 
 ```sh
