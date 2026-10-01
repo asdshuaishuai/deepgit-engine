@@ -1791,6 +1791,19 @@ util → kernel → ai → flow → cli
         只是没人往模型里加过非可选字段。
 
 76. **引擎给了、模型收了、界面不说 ⇒ 等于没算。**
+    ⚠️ **判定「死代码」前，grep 引用时不要加过滤模式。**
+    这次差点删掉 `RepoFacts.toJson()`（126 行，输出 tags / authors /
+    commitActivity / fileStats 等 20 个键）：我用
+    `grep "\.toJson()" | grep -v 关键词` 找引用，输出被 `head` 截断，
+    剩下的两行全落在已排除的关键词里，看起来就是「零调用」。
+    换成不带过滤的 `grep -rn "facts.toJson"` 才看见：
+    `repo.cj:951` 与 `984` 两个测试在用它守 JSON 形状契约。
+
+    而且它**确实该保留**：`deepgit docs` 的深更新会把 commitActivity /
+    authors / tags 写进 markdown（客户端文档页能读到），
+    改版规范 D5 又把它列为「复活热力图 / 贡献者 / tag 视图的现成资产」。
+    生产路径零调用 ≠ 可以删 —— 要问的是「有没有人在等它」。
+
     Phase 3 地基层补了 13 个引擎键进客户端模型，逐个查视图层引用时发现
     **6 个一个都没渲染**：`tags`、`manifests`、`dirty`、`headSubject`、
     `headDate`、`provider`。引擎为了 `overall.notes` 专门算出了
@@ -2213,6 +2226,36 @@ util → kernel → ai → flow → cli
         它的参数必须是泛型 `ShapeStyle` 而不是 `Color` ——
         `.quaternary` / `.secondary` 是 `HierarchicalShapeStyle`，
         写死 `Color` 会逼调用方把层级色硬转，白丢一层语义。
+
+99. **「声明存在」有三层：名字在 ≠ 被调用 ≠ 真的生效。**
+    给 Dock 菜单写判据时连栽**三次假绿**，三次都是「我以为查了，其实没查」：
+
+      1. `code.contains("applicationDockMenu")`
+         → 注入把函数体换成 `{ nil }`，函数名还在，照样绿。
+      2. `code.contains("buildDockMenu()")`
+         → **函数定义本身** `private func buildDockMenu() -> NSMenu?` 就含
+         `buildDockMenu()` 这个子串。查「有没有调用」却分不清「定义」和「调用」。
+      3. `slice(from: "func applicationDockMenu(", to: "\n    }\n")`
+         → 目标函数被压成单行时找不到结束标记，切片一路跨到下一个函数，
+         把别处的**定义**又吃了进来 —— 第 2 条的坑换个形式复发。
+
+    最后靠**按行取「声明的下一行」**才真正抓住：那是函数体第一行，
+    不可能是别处的定义。
+
+    推广：
+      · 查「真的被调用了吗」：**不要靠子串，也不要靠花括号配平**。
+        子串分不清定义与调用；配平遇到单行函数体就跨界。
+        取「声明行的下一行」最简单也最稳。
+      · 一条判据里有多条 guard 时，**按严重程度排序**。
+        第一版把「不许绕过确认」放在最后，于是注入「直接开跑」时先撞上
+        「没走 requestBulkUpdate」抛了 —— 缺陷抓到了，但报的理由不是最严重的。
+      · ⚠️ 负控的价值一半在「红」，另一半在「红的原因与它声称的判据一致」。
+        本条里的三次假绿 + 一次理由错位，全靠后一半抓出来。
+        看到判据红，先问「它红的原因是我以为的那个吗」，别急着收工。
+      · 与不变量 88（声明 ≠ 绑定）同族，这次在「文档 ↔ 实现 ↔ 判据」三层各栽一次：
+        README 声明了一个不存在的 Dock 菜单（文档层）、
+        判据只查函数名（判据层）、
+        `NSMenuItem.target` 留空则灰着点不动（实现层）。
 
 ## 常用命令
 
