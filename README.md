@@ -18,11 +18,11 @@ deepGit Engine 用 git 自己的历史回答这两个问题：
 引擎是 **AI 无关** 的确定性内核：不含任何 LLM 调用，也不持有 AI 配置。
 它为上层 agent **提供所需的一切**：
 
-| 提供 | 端点 | 说明 |
+| 提供 | 接口 | 说明 |
 |---|---|---|
-| **上下文包** | `GET /api/context?scope=group\|project&name=&budget=` | 预算内（字符数）的 markdown 事实摘要：总览/脉搏/分支表/日志/里程碑 |
-| **工具清单** | `GET /api/tools` | agent 可执行操作的结构化清单（10 项：读上下文/文档/日志，跑更新，git 操作，里程碑） |
-| **工具执行** | 上述工具对应的普通 API | agent 决定调用，引擎照常执行并返回结果 |
+| **上下文包** | `deepgit context [项目] [--budget N] --json`（MCP：context 类工具） | 预算内（字符数）的 markdown 事实摘要：总览/脉搏/分支表/日志/里程碑 |
+| **工具清单** | `deepgit tools --json`（MCP：`tools/list`） | agent 可执行操作的结构化清单（10 项：读上下文/文档/日志，跑更新，git 操作，里程碑） |
+| **工具执行** | 对应的 CLI 子命令 | agent 决定调用，引擎照常执行并返回结果 |
 
 ## AI Agent 接入：CLI / MCP / Skill（三件套）
 
@@ -77,7 +77,11 @@ prompt 组装、工具调用循环、答案渲染——与 deepDesign 之于 moo
 
 ## 多平台路线
 
-引擎是**唯一的业务核心**，所有 UI 交互层（各平台客户端）只消费它的两种接口：CLI `--json` 与本地 HTTP API。
+引擎是**唯一的业务核心**，所有 UI 交互层（各平台客户端）只消费它的两种接口：CLI `--json`（客户端主通道，以子进程方式调用）与 MCP（`deepgit mcp`，stdio JSON-RPC，AI agent 用）。传输层只在本机进程之间通信（子进程 + 管道/stdio），**不跨网络，没有 HTTP 服务**。
+
+> 「进程内」这个词在本仓库里只指**进程内 FFI**（把引擎编成 dylib 链接进客户端）——
+> 那条路在仓颉 1.0.5 上**已决定不做**（见 `AGENTS.md` 不变量 58），
+> 不要把它读成「客户端在同一进程里调引擎」。
 
 | 平台 | 状态 | 说明 |
 |---|---|---|
@@ -86,7 +90,7 @@ prompt 组装、工具调用循环、答案渲染——与 deepDesign 之于 moo
 | **Windows** (x86_64) | 🧭 路线内 | 仓颉官方支持 Windows 目标；`cjpm.toml` 的 link-option 为 darwin 专属，移植时需按平台调整 |
 | **鸿蒙 PC** | 🧭 路线内 | 仓颉是鸿蒙生态一等语言；走仓颉鸿蒙工具链编译，客户端层见 clients 仓库 |
 
-> 引擎零第三方依赖（JSON / SHA-256 / HTTP 服务 / Markdown 渲染全部自研），外部依赖只有系统 `git` 与 `curl`——这是多平台移植成本低的关键。
+> 引擎零第三方依赖（JSON / SHA-256 / Markdown 渲染全部自研），外部依赖只有系统 `git` 与 `curl`——这是多平台移植成本低的关键。
 
 ## 快速开始
 
@@ -102,9 +106,6 @@ deepgit scan ~/dev --depth 4
 deepgit status
 deepgit update
 deepgit deep --scope readme
-
-# 5. 启动本地服务（API-only，供客户端使用）
-deepgit serve --port 5177
 ```
 
 ## 命令一览
@@ -126,7 +127,6 @@ deepgit milestone <add|list|done|drop|remove> [项目] [名称]
 deepgit dashboard                 跨项目聚合：活跃度 / 里程碑 / 语言分布 / 待合入
 deepgit report [项目] [--out F]   导出自包含 Markdown 进度报告
 deepgit hook <install|uninstall|status> [项目]   post-commit + post-merge 钩子
-deepgit serve [--port N] [--open] 启动本地 HTTP 服务（API-only）
 deepgit verify [项目]             校验文档完整性（用户内容是否被改动）
 deepgit config <list|get|set> [k] [v]
 deepgit doctor                    环境自检
@@ -134,27 +134,14 @@ deepgit doctor                    环境自检
 
 全局选项：`--json`（机器可读）、`-q`（静默）、`-v`（详细日志）。
 
-## HTTP API（客户端契约）
+## 客户端契约
 
-服务仅监听 `127.0.0.1`，本地单用户设计。
+**没有本地 HTTP 服务，也没有 `deepgit serve`。** 客户端（各平台 UI 层）以**子进程**方式调用 CLI，
+读 `status` / `dashboard` / `milestone list` / `journal` / `docs` / `config` 的 `--json` 输出；
+写操作调用 `update` / `deep` / `track` / `git <op>` / `add` / `scan` / `milestone <子命令>`。
 
-| 方法 | 路径 | 说明 |
-|---|---|---|
-| GET | `/api/health` | 健康检查 |
-| GET | `/api/projects` | 已注册项目列表 |
-| GET | `/api/status?name=&light=` | 项目状态（全量/轻量），多项目返回 `{projects, summary}` |
-| GET | `/api/dashboard` | 跨项目聚合（活跃度/里程碑/语言分布） |
-| GET | `/api/milestones[?name=]` | 里程碑（git 感知进度） |
-| GET | `/api/docs?name=` | 项目 README/AGENTS/CLAUDE 原文（单文件 200KB 截断） |
-| GET | `/api/journal?name=` | 进度日志 |
-| GET | `/api/config` | 配置（apiKey 恒为空串脱敏） |
-| POST | `/api/update`、`/api/deep`、`/api/track` | 更新动作（`?name=` 或 body） |
-| POST | `/api/git` | git 操作 `{project, op, message}`，白名单见 CLI |
-| POST | `/api/add` | 注册单个项目 `{path, name?}` |
-| POST | `/api/scan` | 批量扫描 `?root=&depth=` |
-| POST | `/api/milestones`、`/api/milestones/action` | 里程碑创建 / done\|open\|drop\|remove |
-
-`--json` CLI 与 HTTP API 输出同一套结构，键名即契约。
+`--json` CLI 与 MCP 工具输出共用同一套结构，**键名即契约**。
+其中 `status --json` 恒为 `{projects, summary, language}` envelope——单项目与多项目同形状。
 
 ## 它怎么判断「进度」
 
@@ -191,7 +178,7 @@ src/util/     JSON / SHA256 / 文本 / 时间 / 路径 / 进程 / 日志（叶�
 src/kernel/   配置 / 注册表 / 存储 / git 封装 / 事实采集 / 里程碑 / 进度 / 文档区域 / 渲染 / 钩子
 src/ai/       provider（curl）/ 提示词 / 规则引擎
 src/flow/     浅更新 / 深更新 / 状态聚合 / 仪表盘 / 报告 / 文档读取（编排层）
-src/cli/      CLI 命令 + HTTP 服务
+src/cli/      CLI 命令 + MCP 服务器（stdio JSON-RPC）
 scripts/      install.sh（含极简 SDK 自动部署）/ deepgit.sh / build-minimal-sdk.sh
 ```
 
@@ -199,8 +186,7 @@ scripts/      install.sh（含极简 SDK 自动部署）/ deepgit.sh / build-min
 
 ## 构建细节与已知边界
 
-见 [AGENTS.md](AGENTS.md)（仓颉编码约定、macOS SDK 兼容、测试基线 203 项）。
+见 [AGENTS.md](AGENTS.md)（仓颉编码约定、macOS SDK 兼容、测试基线 491 项）。
 
-- HTTP 服务无鉴权、CORS 全开、串行处理，**仅限本地单用户**，勿暴露公网。
 - SHA-256 自研（通过官方测试向量），不用于密码学安全场景。
 - AI 摘要质量取决于提交信息质量。

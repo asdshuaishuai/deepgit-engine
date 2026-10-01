@@ -63,7 +63,7 @@ mkdir -p "$DST/System/Library/Frameworks"
 
 echo
 SIZE=$(du -sh "$DST" | cut -f1)
-echo "✓ 完成：$DST（$SIZE）"
+echo "✓ 完成：${DST}（${SIZE}）"
 echo
 echo "用法：export SDKROOT=\"$DST\""
 echo "     或在 deepgit install.sh 中已自动检测该路径。"
