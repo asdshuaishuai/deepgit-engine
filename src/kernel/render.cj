@@ -62,19 +62,53 @@ public func userDirtyCount(facts: RepoFacts): Int64 {
     return n
 }
 
+/// 分支数口径披露：进度库里的 N 个 ≠ 仓库里的 N 个。
+///
+/// 「上限当全量」这一族已经栽了 15 次，这里是第 16 次。
+/// 候选分支集受 `config.maxShallowBranches`（默认 6）限制，所以
+/// `progress.branches` 天然是**样本**。把它直接渲染成「追踪 7 个分支」
+/// 而不给分母，读者只会理解成「这仓库就 7 个分支」——
+/// 实测 16 个分支的仓库正是如此。
+///
+/// 抽成纯函数是为了能单独测：这种文案一旦内联在渲染的 if 里，
+/// 改错了不会有任何测试变红。
+///
+/// `repoCount` 为 `None` 时返回空串 —— 读不出来**不等于**没有，
+/// 这时候闭嘴比编一句「仓库共 0 个分支」诚实。
+public func branchScopeNote(tracked: Int64, repoCount: Option<Int64>, zh: Bool): String {
+    match (repoCount) {
+        case Some(n) =>
+            if (n == tracked) {
+                return ""
+            }
+            if (n > tracked) {
+                return if (zh) { "（仓库共 ${n} 个，本次只追踪 ${tracked} 个）" }
+                       else { "(${tracked} of ${n} branches tracked)" }
+            }
+            // 反向不一致（进度库里有仓库已删掉的分支）同样要说，
+            // 否则用户会反过来怀疑 git 少算了
+            return if (zh) { "（仓库共 ${n} 个，进度库里有 ${tracked} 条分支记录）" }
+                   else { "(${tracked} recorded, ${n} in repo)" }
+        case None => return ""
+    }
+}
+
 func overallLine(facts: RepoFacts, progress: JsonValue, lang: String): String {
-    let zh = lang != "en"
+    let zh = !isEnglish(lang)
     if (facts.kind != "git") {
-        var n: Int64 = 0
         match (facts.activity) {
-            case Some(a) => n = a.fileCount
-            case None => ()
+            case Some(a) =>
+                return "非 git 项目 · " + fileCountLabel(a, zh) + " · 基于文件活动追踪"
+            case None =>
+                return if (zh) { "非 git 项目 · 0 个文件 · 基于文件活动追踪" } else { "non-git · 0 files · file activity mode" }
         }
-        return if (zh) { "非 git 项目 · ${n} 个文件 · 基于文件活动追踪" } else { "non-git · ${n} files · file activity mode" }
     }
     let branchCount = progressBranches(progress).size
+    // 「追踪 N 个分支」的 N 是样本，分母必须一起出现，
+    // 否则这一行就是本引擎最会骗人的那种事实性陈述
+    let note = branchScopeNote(branchCount, repoBranchTotal(facts), zh)
     let parts = ArrayList<String>()
-    parts.add(if (zh) { "追踪 ${branchCount} 个分支" } else { "${branchCount} branches tracked" })
+    parts.add(if (zh) { "追踪 ${branchCount} 个分支${note}" } else { "${branchCount} branches tracked${note}" })
     let dirtyCount = userDirtyCount(facts)
     if (dirtyCount > 0) {
         parts.add(if (zh) { "${dirtyCount} 处未提交改动" } else { "${dirtyCount} uncommitted" })
@@ -86,7 +120,7 @@ func overallLine(facts: RepoFacts, progress: JsonValue, lang: String): String {
 }
 
 func branchHeading(name: String, facts: RepoFacts, lang: String): String {
-    let zh = lang != "en"
+    let zh = !isEnglish(lang)
     let tags = ArrayList<String>()
     if (name == facts.defaultBranch) {
         tags.add(if (zh) { "默认分支" } else { "default" })
@@ -101,7 +135,7 @@ func branchHeading(name: String, facts: RepoFacts, lang: String): String {
 }
 
 func branchBlock(name: String, rec: JsonValue, narration: Option<BranchNarrative>, facts: RepoFacts, lang: String): String {
-    let zh = lang != "en"
+    let zh = !isEnglish(lang)
     let sb = StringBuilder()
     sb.append(branchHeading(name, facts, lang))
     sb.append("\n\n")
@@ -117,7 +151,7 @@ func branchBlock(name: String, rec: JsonValue, narration: Option<BranchNarrative
     match (narration) {
         case Some(n) =>
             if (!n.summary.isEmpty()) {
-                sb.append("- **${if (zh) { "摘要" } else { "Summary" }}**：${oneLine(n.summary)}\n")
+                sb.append("- **${if (zh) { "摘要" } else { "Summary" }}**：${oneLineClamped(n.summary, 160)}\n")
             }
             if (n.highlights.size > 0) {
                 sb.append("- **${if (zh) { "近期进展" } else { "Recent work" }}**\n")
@@ -126,7 +160,7 @@ func branchBlock(name: String, rec: JsonValue, narration: Option<BranchNarrative
                     if (i >= 6) {
                         break
                     }
-                    sb.append("  - ${oneLine(h)}\n")
+                    sb.append("  - ${oneLineClamped(h, 160)}\n")
                     i += 1
                 }
             }
@@ -137,20 +171,20 @@ func branchBlock(name: String, rec: JsonValue, narration: Option<BranchNarrative
                     if (i >= 5) {
                         break
                     }
-                    sb.append("  - ${oneLine(h)}\n")
+                    sb.append("  - ${oneLineClamped(h, 160)}\n")
                     i += 1
                 }
             }
         case None =>
             let storedSummary = Json.strAt(rec, "summary", "")
             if (!storedSummary.isEmpty()) {
-                sb.append("- **${if (zh) { "摘要" } else { "Summary" }}**：${oneLine(storedSummary)}\n")
+                sb.append("- **${if (zh) { "摘要" } else { "Summary" }}**：${oneLineClamped(storedSummary, 160)}\n")
             }
             let storedHighlights = Json.strArrAt(rec, "highlights")
             if (storedHighlights.size > 0) {
                 sb.append("- **${if (zh) { "近期进展" } else { "Recent work" }}**\n")
                 for (h in storedHighlights) {
-                    sb.append("  - ${oneLine(h)}\n")
+                    sb.append("  - ${oneLineClamped(h, 160)}\n")
                 }
             }
     }
@@ -246,7 +280,7 @@ func branchHeadDate(name: String, progress: JsonValue): String {
 
 /// 工程脉搏小节：提交类型构成 + 热点文件 + 工作区注意项（无数据时返回空串）
 public func renderPulse(facts: RepoFacts, lang: String): String {
-    let zh = lang != "en"
+    let zh = !isEnglish(lang)
     let lines = ArrayList<String>()
 
     if (facts.commitTypes.size > 0) {
@@ -272,7 +306,12 @@ public func renderPulse(facts: RepoFacts, lang: String): String {
 
     let notes = ArrayList<String>()
     if (facts.untrackedCount > 0) {
-        notes.add("${facts.untrackedCount} 个未跟踪文件")
+        // 同样：采样上限不等于总数，旧实现报「未跟踪 50」（实测真实 317）
+        notes.add(if (facts.untrackedTruncated) {
+            "${facts.untrackedCount}+ 个未跟踪文件"
+        } else {
+            "${facts.untrackedCount} 个未跟踪文件"
+        })
     }
     if (facts.stashCount > 0) {
         notes.add("${facts.stashCount} 条 stash")
@@ -309,7 +348,7 @@ public func renderProgressReadme(
     facts: RepoFacts, progress: JsonValue, narratives: HashMap<String, BranchNarrative>,
     lang: String, mode: String, at: String, maxBranches: Int64,
 ): String {
-    let zh = lang != "en"
+    let zh = !isEnglish(lang)
     let sb = StringBuilder()
     sb.append("## 项目进度\n\n")
     sb.append("> 本区域由 **deepGit** 自动维护（${modeLabel(mode, lang)}）· 更新于 ${formatDateTime(at)}\n")
@@ -326,7 +365,9 @@ public func renderProgressReadme(
         branchNames.add(name)
     }
     if (branchNames.size == 0) {
-        sb.append(if (zh) { "_暂无进度记录，运行 `deepgit update` 生成。_\\n" } else { "_No progress yet._\\n" })
+        // 注意结尾是单个 \n（换行），不是 \\n —— 后者是「反斜杠 + 字母 n」两个字符，
+        // 会被原样写进用户 README 的托管区，每次运行都重现且永不自愈。
+        sb.append(if (zh) { "_暂无进度记录，运行 `deepgit update` 生成。_\n" } else { "_No progress yet._\n" })
         return sb.toString()
     }
 
@@ -376,7 +417,7 @@ public func renderProgressAgent(
     facts: RepoFacts, progress: JsonValue, narratives: HashMap<String, BranchNarrative>,
     lang: String, mode: String, at: String,
 ): String {
-    let zh = lang != "en"
+    let zh = !isEnglish(lang)
     let sb = StringBuilder()
     sb.append("## 当前进度（deepGit 维护）\n\n")
     sb.append("> ${modeLabel(mode, lang)} · ${formatDateTime(at)} · ${overallLine(facts, progress, lang)}\n\n")
@@ -391,7 +432,8 @@ public func renderProgressAgent(
         branchNames.add(name)
     }
     if (branchNames.size == 0) {
-        sb.append(if (zh) { "_暂无记录。_\\n" } else { "_No record yet._\\n" })
+        // 同上：单个 \n，不是 \\n
+        sb.append(if (zh) { "_暂无记录。_\n" } else { "_No record yet._\n" })
         return sb.toString()
     }
 
@@ -432,12 +474,12 @@ public func renderProgressAgent(
                 match (narratives.get(name)) {
                     case Some(n) =>
                         if (!n.summary.isEmpty()) {
-                            summaryStr = " —— ${oneLine(n.summary)}"
+                            summaryStr = " —— ${oneLineClamped(n.summary, 60)}"
                         }
                     case None =>
                         let s = Json.strAt(rec, "summary", "")
                         if (!s.isEmpty()) {
-                            summaryStr = " —— ${oneLine(s)}"
+                            summaryStr = " —— ${oneLineClamped(s, 60)}"
                         }
                 }
                 sb.append("- **`${name}`**${flagStr}：${statusLabel(Json.strAt(rec, "status", "unknown"), lang)} · head `${head}`${ago}${extraStr}${summaryStr}\n")
@@ -484,7 +526,7 @@ public func renderProgressAgent(
             if (k >= 3) {
                 break
             }
-            sb.append("- `${shortSha(c.sha)}` ${oneLine(c.subject)}（${formatDateOnly(c.date)}）\n")
+            sb.append("- `${shortSha(c.sha)}` ${oneLineClamped(c.subject, 120)}（${formatDateOnly(c.date)}）\n")
             k += 1
         }
     }
@@ -494,7 +536,7 @@ public func renderProgressAgent(
 // ------------------------------ 深度更新的兜底渲染 ------------------------------
 
 public func renderOverviewFallback(facts: RepoFacts, progress: JsonValue, lang: String): String {
-    let zh = lang != "en"
+    let zh = !isEnglish(lang)
     let sb = StringBuilder()
     sb.append("## 项目概览\n\n")
     let manifest = if (facts.manifests.size > 0) { facts.manifests[0] } else { "" }
@@ -514,13 +556,28 @@ public func renderOverviewFallback(facts: RepoFacts, progress: JsonValue, lang: 
         sb.append("- **技术构成**：${joinStrings(parts, "、")}\n")
     }
     if (facts.kind == "git") {
-        sb.append("- **工程规模**：${facts.trackedFiles} 个跟踪文件 · ${facts.commitCount} 个提交 · 始于 ${formatDateOnly(facts.firstCommitAt)}\n")
+        // 触到采集上限时必须说破。trackedFiles 是真实总数，但 langStats / structure
+        // 只覆盖了前 N 个文件的名，读者需要知道「技术构成」不是全量口径。
+        // 旧实现把上限当总数报出去：25000 个文件的仓库写「20000 个跟踪文件」。
+        let trackedText = if (facts.trackedTruncated) {
+            "${facts.trackedFiles} 个跟踪文件（以下明细为抽样统计，非全量）"
+        } else {
+            "${facts.trackedFiles} 个跟踪文件"
+        }
+        sb.append("- **工程规模**：${trackedText} · ${facts.commitCount} 个提交 · 始于 ${formatDateOnly(facts.firstCommitAt)}\n")
         if (!facts.remote.isEmpty()) {
             sb.append("- **远端**：${facts.remote}\n")
         }
     } else {
         match (facts.activity) {
-            case Some(a) => sb.append("- **规模**：${a.fileCount} 个文件（非 git 仓库，基于文件活动追踪）\n")
+            case Some(a) =>
+                sb.append("- **规模**：${fileCountLabel(a, zh)}（非 git 仓库，基于文件活动追踪）\n")
+                // 计数只是下界；用户要动手就得知道是**哪几条路径**读不到。
+                // 这一行会写进用户仓库的 README 托管区，长期可见，所以不能只给个数。
+                let uLine = unreadablePathsLine(a, zh)
+                if (!uLine.isEmpty()) {
+                    sb.append("- ${uLine}\n")
+                }
             case None => ()
         }
     }
@@ -537,7 +594,7 @@ public func renderOverviewFallback(facts: RepoFacts, progress: JsonValue, lang: 
 }
 
 public func renderArchitectureFallback(facts: RepoFacts, lang: String): String {
-    let zh = lang != "en"
+    let zh = !isEnglish(lang)
     let sb = StringBuilder()
     sb.append("## 架构与目录\n\n")
     if (facts.structure.size > 0) {
@@ -576,7 +633,7 @@ public func renderArchitectureFallback(facts: RepoFacts, lang: String): String {
 }
 
 public func renderHistoryFallback(facts: RepoFacts, progress: JsonValue, lang: String): String {
-    let zh = lang != "en"
+    let zh = !isEnglish(lang)
     let sb = StringBuilder()
     sb.append("## 里程碑与历史\n\n")
     if (facts.tags.size > 0) {
@@ -592,7 +649,16 @@ public func renderHistoryFallback(facts: RepoFacts, progress: JsonValue, lang: S
         sb.append("\n")
     }
     if (facts.commitActivity.size > 0) {
-        sb.append("**${if (zh) { "提交活跃度（按月）" } else { "Commits per month" }}**\n\n")
+        // 触到采样上限时必须说破。这已经是「上限当全量」的第三处同族缺陷
+        // （前两处：跟踪文件数 20000、未跟踪文件数 50）。
+        // 危害是自相矛盾：README 声明 450 个提交，月度直方图只加得出 400，
+        // 而读者无从分辨 1 月写 100 是真实的还是被砍掉了 50。
+        let title = if (facts.activityTruncated) {
+            "**${if (zh) { "提交活跃度（按月，仅统计最近 ${ACTIVITY_SCAN_LIMIT} 个提交）" } else { "Commits per month (last ${ACTIVITY_SCAN_LIMIT} commits only)" }}**\n\n"
+        } else {
+            "**${if (zh) { "提交活跃度（按月）" } else { "Commits per month" }}**\n\n"
+        }
+        sb.append(title)
         let parts = ArrayList<String>()
         var i: Int64 = 0
         let total = facts.commitActivity.size
@@ -633,7 +699,7 @@ public func renderHistoryFallback(facts: RepoFacts, progress: JsonValue, lang: S
             if (i >= 3) {
                 break
             }
-            sb.append("- `${shortSha(c.sha)}` ${oneLine(c.subject)}（${formatDateOnly(c.date)}）\n")
+            sb.append("- `${shortSha(c.sha)}` ${oneLineClamped(c.subject, 120)}（${formatDateOnly(c.date)}）\n")
             i += 1
         }
     }
@@ -641,7 +707,7 @@ public func renderHistoryFallback(facts: RepoFacts, progress: JsonValue, lang: S
 }
 
 public func renderCommandsFallback(facts: RepoFacts, lang: String): String {
-    let zh = lang != "en"
+    let zh = !isEnglish(lang)
     let sb = StringBuilder()
     sb.append("## 常用命令\n\n")
     var wrote = false
@@ -744,7 +810,7 @@ func testOverallLineNonGit(): Unit {
 func testOverviewFallbackRendersManifest(): Unit {
     let base = "/tmp/deepgit-ov-${nowMillis()}"
     ensureDir(base)
-    gitRun(base, ["init", "-b", "main"], true)
+    gitRun(base, ["init", "-b", "main"], false)
     writeFileAtomic(base + "/cjpm.toml", "[package]\nname=\"x\"")
     let facts = collectFacts(base, "git", Config.defaults(), 5, true)
     let md = renderOverviewFallback(facts, Json.obj(), "zh")
@@ -857,4 +923,103 @@ func testRenderPulseWithNotes(): Unit {
     @Assert(pulse.contains("7 个未跟踪文件"))
     @Assert(pulse.contains("2 条 stash"))
     @Assert(pulse.contains("3 个工作区"))
+}
+
+/// 用户文本写进渲染结果时必须限长。
+///
+/// 旧代码有两套标准：headSubject 截断到 48，而「最初提交」段的
+/// `oneLine(c.subject)` 完全不截断。实测一个 20000 字符的 commit message
+/// 让 README 出现**单行 20035 字符**，Markdown 表格与代码块布局被彻底撑坏，
+/// 且每次 update 都复现。两套标准并存必然漏点，所以收进 oneLineClamped。
+@Test
+func testRenderedUserTextIsLengthClamped(): Unit {
+    let huge = StringBuilder()
+    for (i in 0..20000) {
+        huge.append("A")
+    }
+    let long = huge.toString()
+    @Assert(long.size == 20000)
+    // 折叠 + 截断后必须短到能放进一行。
+    // 注意断的是**显示宽度**而不是 String.size（字节数）——
+    // truncate 的契约就是显示宽度，末尾的「…」在 UTF-8 里占 3 字节。
+    @Assert(displayWidth(oneLineClamped(long, 120)) <= 120)
+    // 正常长度的文本不受影响
+    @Assert(oneLineClamped("正常标题", 120) == "正常标题")
+    // 换行仍被折叠掉
+    @Assert(oneLineClamped("a\nb\tc", 120) == "a b c")
+}
+
+/// 真实渲染输出里不得出现超长行。
+///
+/// 旧代码在「最初提交」段用 `oneLine(c.subject)` 完全不截断，而同一文件的
+/// headSubject 截断到 48 —— 两套标准并存。实测一个 20000 字符的 commit message
+/// 让 README 出现**单行 20035 字符**，Markdown 表格与代码块布局被撑坏，
+/// 且每次 update 都复现。
+///
+/// ⚠️ 必须走 renderHistoryFallback 真实渲染：只断 oneLineClamped 这个辅助函数
+/// 是没用的 —— 辅助函数一直是对的，错的是调用点忘了用它。
+@Test
+func testRenderedHistoryHasNoRunawayLines(): Unit {
+    let base = "/tmp/deepgit-longline-${nowMillis()}"
+    ensureDir(base)
+    gitRun(base, ["init", "-b", "main"], false)
+    writeFileAtomic(base + "/a.txt", "1")
+    gitRun(base, ["add", "."], false)
+    let sb = StringBuilder()
+    sb.append("feat: ")
+    for (i in 0..20000) {
+        sb.append("A")
+    }
+    gitRun(base, ["-c", "user.name=t", "-c", "user.email=t@t", "commit", "-q", "-m", sb.toString()], false)
+
+    let facts = collectFacts(base, "git", Config.defaults(), 30, true)
+    @Assert(facts.oldestCommits.size > 0)
+    @Assert(facts.oldestCommits[0].subject.size > 19000)  // 确认 subject 确实超长
+    let out = renderHistoryFallback(facts, Json.obj(), "zh")
+    for (line in out.split("\n")) {
+        @Assert(displayWidth(line) <= 200)
+    }
+    removePathIfExists(base)
+}
+
+/// oneLineClamped 自身的契约。
+/// 注意断的是**显示宽度**而不是 String.size（字节数）——
+/// truncate 的契约就是显示宽度，末尾的「…」在 UTF-8 里占 3 字节。
+@Test
+func testOneLineClampedContract(): Unit {
+    let sb = StringBuilder()
+    for (i in 0..20000) {
+        sb.append("A")
+    }
+    let long = sb.toString()
+    @Assert(long.size == 20000)
+    @Assert(displayWidth(oneLineClamped(long, 120)) <= 120)
+    @Assert(oneLineClamped("正常标题", 120) == "正常标题")
+    @Assert(oneLineClamped("a\nb\tc", 120) == "a b c")
+}
+
+@Test
+func testEmptyProgressTextHasNoLiteralBackslashN(): Unit {
+    // 原文写的是 "_暂无进度记录…_\\n" —— 两个字符：反斜杠 + 字母 n，不是换行符。
+    // 它落在托管区内，于是每次 update/deep 都把字面 \n 写进用户的 README/AGENTS，
+    // 每次重现且永不自愈。触发条件很常见：git init 后还没提交过任何东西。
+    let tmp = "/tmp/dg_emptyrender_${nowMillis()}"
+    ensureDir(tmp)
+    let facts = collectDirFacts(tmp, Config.defaults())
+    let narratives = HashMap<String, BranchNarrative>()
+    @Assert(facts.kind == "dir")
+
+    let readme = renderProgressReadme(facts, Json.obj(), narratives, "zh", "shallow", "2026-10-01T04:00:00+08:00", 6)
+    @Assert(!readme.contains("\\n"))
+    @Assert(readme.contains("暂无进度记录"))
+
+    let agent = renderProgressAgent(facts, Json.obj(), narratives, "zh", "deep", "2026-10-01T04:00:00+08:00")
+    @Assert(!agent.contains("\\n"))
+    @Assert(agent.contains("暂无记录"))
+
+    // 英文路径同样要干净
+    @Assert(!renderProgressReadme(facts, Json.obj(), narratives, "en", "shallow", "2026-10-01T04:00:00+08:00", 6).contains("\\n"))
+    @Assert(!renderProgressAgent(facts, Json.obj(), narratives, "en", "deep", "2026-10-01T04:00:00+08:00").contains("\\n"))
+
+    removePathIfExists(tmp)
 }

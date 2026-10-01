@@ -22,11 +22,40 @@ public func parseIsoMillis(s: String): Option<Int64> {
     }
 }
 
+/// 判断 [0, idx) 是否落在合法的 UTF-8 字符边界上。
+/// 仓颉的 String 是字节序列，切片点必须正好是某个字符的起始字节，
+/// 否则 `s[..n]` 抛 "Invalid utf8 byte sequence"。
+/// ISO 时间串的固定位置（0/4/7/10/11/16）只有在前面全是 ASCII 时才成立；
+/// 只要有一个多字节字符插进来，后面所有固定偏移都可能劈开字符。
+func isUtf8Boundary(s: String, idx: Int64): Bool {
+    if (idx <= 0 || idx >= s.size) {
+        return idx == 0 || idx == s.size
+    }
+    let b = s.toArray()[idx]
+    // 起始字节：0xxxxxxx(ASCII) 或 110xxxxx(2 字节) 或 1110xxxx(3 字节) 或 11110xxx(4 字节)
+    return (b & 0xC0u8) != 0x80u8
+}
+
 /// 本地 "YYYY-MM-DD HH:mm"（基于 ISO 字符串切片，不做时区换算）
 public func formatDateTime(iso: String): String {
     let s = iso.trimAscii()
     if (s.size < 16) {
         return "-"
+    }
+    // ⚠️ 边界检查必须排在**所有**切片之前，包括下面 s[4..5] / s[7..8] 这两次单字节切片。
+    // 它们的切点同样可能落在续字节上：串 "2026-1中-01T..." 的第 7 字节是「中」的
+    // 第二个续字节，s[7..8] 切出来的单字节不是合法 UTF-8，仓颉当场抛
+    // "Invalid utf8 byte sequence" —— 连「返回 -」都走不到。
+    //
+    // 旧实现只查长度和第 4/7 位是不是 "-"，然后无条件切 [..10] 和 [11..16]，
+    // 串里只要有一个多字节字符插在切点之前就崩掉整个命令。
+    // 实测 journal.jsonl 里 at="2026-10-01T03:4中"（第 15 字节起是汉字），
+    // `deepgit journal` 报「内部错误：Invalid utf8 byte sequence」exit 1。
+    // journal.jsonl 是面向用户的可读文件，还被 post-commit 钩子持续追加。
+    for (k in [4, 5, 7, 8, 10, 11, 16]) {
+        if (!isUtf8Boundary(s, k)) {
+            return "-"
+        }
     }
     if (s[4..5] != "-" || s[7..8] != "-") {
         return "-"
@@ -37,6 +66,10 @@ public func formatDateTime(iso: String): String {
 public func formatDateOnly(iso: String): String {
     let s = iso.trimAscii()
     if (s.size < 10) {
+        return "-"
+    }
+    // 同上：[..10] 也可能劈开字符
+    if (!isUtf8Boundary(s, 10)) {
         return "-"
     }
     return s[..10]
@@ -60,12 +93,19 @@ public func daysSince(iso: String): Float64 {
 
 /// "3 分钟前" / "2 天前"
 public func timeAgo(iso: String, lang: String): String {
-    let zh = lang != "en"
+    let zh = !isEnglish(lang)
     let ms = millisSince(iso)
     if (ms == Int64.Max) {
         return "-"
     }
     if (ms < 0) {
+        // 时间戳在未来。一天内当作时钟轻微偏差（毫秒级、时区换算都可能造成），
+        // 说「刚刚」无害；超过一天就必须承认时间不可信 ——
+        // 旧实现一律说「刚刚」，于是 2030 年的提交显示「刚刚」并会持续 3 年多。
+        let lateDays = -ms / 86400000
+        if (lateDays >= 1) {
+            return if (zh) { "⚠ 时间异常（晚于当前 ${lateDays} 天）" } else { "⚠ clock skew: ${lateDays}d in the future" }
+        }
         return if (zh) { "刚刚" } else { "just now" }
     }
     let sec = ms / 1000
@@ -186,4 +226,50 @@ func testFormatDateTimeReadable(): Unit {
     let f = formatDateTime("2026-09-30T13:05:00Z")
     @Assert(!f.isEmpty())
     @Assert(!f.contains("T"))
+}
+
+@Test
+func testFormatDateTimeDoesNotSplitUtf8Char(): Unit {
+    // 旧实现只查长度和第 4/7 位是不是 "-"，然后无条件切 [..10] 和 [11..16]。
+    // 串里只要有一个多字节字符插在切点之前，切点就劈进字符中间，
+    // 仓颉抛 "Invalid utf8 byte sequence" —— 整个命令崩掉。
+    // 实测 journal.jsonl 里 at="2026-10-01T03:4中"（第 15 字节起是汉字），
+    // `deepgit journal` 报「内部错误：Invalid utf8 byte sequence」exit 1。
+    // journal.jsonl 是面向用户的可读文件，还被 post-commit 钩子持续追加。
+    @Assert(formatDateTime("2026-10-01T03:4中") == "-")
+    // formatDateOnly 只切 [..10]，这个串的前 10 字节本来就是纯 ASCII，切片合法 ——
+    // 它不受影响才是对的（否则就是防护过头误伤了正常输出）
+    @Assert(formatDateOnly("2026-10-01T03:4中") == "2026-10-01")
+    // 多字节前缀后索引 10 仍落在 ASCII 上，切片合法，不该被误伤成 "-"
+    @Assert(formatDateOnly("中2026-10-01T03:45:00+08:00") == "中2026-10")
+    // 第 5 位就不是 "-" 的
+    @Assert(formatDateTime("2026-1中-01T00:00:00+08:00") == "-")
+    // 多字节字符在切点之前（占住 [..10] 区间）
+    @Assert(formatDateTime("中2026-10-01T03:45:00+08:00") == "-")
+
+    // 正常串必须照常格式化，不能被这个防护误伤
+    @Assert(formatDateTime("2026-10-01T03:45:00+08:00") == "2026-10-01 03:45")
+    @Assert(formatDateOnly("2026-10-01T03:45:00+08:00") == "2026-10-01")
+    @Assert(formatDateTime("短") == "-")
+    @Assert(formatDateTime("") == "-")
+}
+
+@Test
+func testIsUtf8Boundary(): Unit {
+    // 判据是「该字节是不是某个字符的起始字节」，即不是 10xxxxxx 续字节。
+    // 纯 ASCII 每个位置都是边界。
+    @Assert(isUtf8Boundary("abc", 0))
+    @Assert(isUtf8Boundary("abc", 1))
+    @Assert(isUtf8Boundary("abc", 2))
+    @Assert(isUtf8Boundary("abc", 3))
+    // "中" = E4 B8 AD：0 是起始，1/2 是续字节
+    @Assert(isUtf8Boundary("中", 0))
+    @Assert(!isUtf8Boundary("中", 1))
+    @Assert(!isUtf8Boundary("中", 2))
+    // "a中b" = 61 E4 B8 AD 62：边界在 0/1/4
+    @Assert(isUtf8Boundary("a中b", 0))
+    @Assert(isUtf8Boundary("a中b", 1))
+    @Assert(!isUtf8Boundary("a中b", 2))
+    @Assert(!isUtf8Boundary("a中b", 3))
+    @Assert(isUtf8Boundary("a中b", 4))
 }

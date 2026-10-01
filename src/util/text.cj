@@ -52,6 +52,27 @@ public func truncate(s: String, maxWidth: Int64, ellipsis: String): String {
     return sb.toString() + ellipsis
 }
 
+/// 中和 deepGit 托管区标记。
+///
+/// 引擎会把 commit subject、AI 生成的摘要、文件名等**完全不可信的文本**
+/// 原样写进用户 README/AGENTS 的托管区。实测可远程触发的后果：
+/// 一次 `git commit -m 'fix: <!-- deepgit:begin progress --> x'` 就能让
+/// README 里多出一个假的 begin 标记，此后每次 update/deep 都因
+/// 「标记结构异常」被拒 —— **写入通道永久焊死，且无法自愈**
+/// （内容每次都从 commit subject 重新生成，必须用户手工编辑 README）。
+///
+/// 这里插入 U+200B（零宽空格）打断 `<!--` 与 `deepgit:` 的邻接。
+/// 选它而不是转义成 `&lt;!--` 是因为渲染出来肉眼无差别、不破坏可读性；
+/// 选它而不是在解析侧补救，是因为解析侧的防线（栈式配对、重名检测、
+/// 归属闸门）已经证明挡得住破坏 —— 问题不在防线，在输入侧。
+/// 在输入侧根治，一处改动消掉整类问题。
+public func neutralizeMarkers(s: String): String {
+    if (!s.contains("<!-- deepgit:")) {
+        return s
+    }
+    return s.replace("<!-- deepgit:", "<!--\u{200b}deepgit:")
+}
+
 /// 折叠空白为单空格
 public func oneLine(s: String): String {
     let sb = StringBuilder()
@@ -68,7 +89,21 @@ public func oneLine(s: String): String {
             sb.append(c)
         }
     }
-    return sb.toString()
+    // 用户文本的收敛点：所有经 oneLine 进渲染结果的不可信内容都在此被中和。
+    // 逐个调用点加是漏点之王（实测 commit subject / summary / highlights /
+    // 文件名都能塞进标记），所以收在这一处。
+    return neutralizeMarkers(sb.toString())
+}
+
+/// 折叠空白 + 按显示宽度截断。所有「把用户文本写进渲染结果」的地方都该走它。
+///
+/// 旧代码在这一点上有两套标准：render.cj:114 的 headSubject 截断到 48，
+/// 而「最初提交」段的 `oneLine(c.subject)` 完全不截断。
+/// 实测一个 20000 字符的 commit message 会让 README 出现**单行 20035 字符**，
+/// 把 Markdown 表格和代码块布局彻底撑坏，且每次 update 都复现。
+/// 两套标准并存必然漏点，所以收进一个函数，让漏点无处可藏。
+public func oneLineClamped(s: String, maxWidth: Int64): String {
+    return truncate(oneLine(s), maxWidth, "…")
 }
 
 /// 规整 Markdown：统一换行、压缩多余空行、确保单个结尾换行
@@ -444,4 +479,111 @@ func testStringExtensions(): Unit {
 func testFirstLineOnLongText(): Unit {
     let text = "# 标题\n\n正文内容\n更多"
     @Assert(text.firstLine() == "# 标题")
+}
+
+/// Markdown 表格单元格转义。
+///
+/// 单元格里的 `|` 会把一行劈成额外的列，整张表从这一行起错位。
+/// 命中点都是**用户可控**的文本，不是引擎生成的：
+///   - 分支名：`git branch 'feat|injected|branch'` 是完全合法的 ref
+///   - 提交标题：`git commit -m "fix: 标题|带|竖线"`
+///   - 里程碑名：任意字符串
+///
+/// 实测报告里 `| feat|injected|branch | 已合并 | 0 | 刚刚 feat: 标题|带|竖线 |`
+/// 这一行有 7 个单元格，而表头只有 4 列 —— 表格从这里开始全是乱的。
+///
+/// 这与「标记注入」「未截断超长文本」是同一族问题的**转义维度**：
+/// neutralizeMarkers 只处理 `<!-- deepgit:` 标记，从不转义表格结构字符。
+/// 换行同样要处理 —— 单元格里的换行会提前结束这一行。
+public func mdCell(s: String): String {
+    let sb = StringBuilder()
+    // ⚠️ 必须按 rune 迭代，不能按字节。
+    // 按字节走会把多字节 UTF-8 序列拆成独立字符，中文全部变乱码
+    // （实测分支表里「1 分钟前 feat: 标题|带|竖线」变成「1 åéå³é¢å¿ ...」）。
+    for (r in s.runes()) {
+        let c = r.toString()
+        if (c == "\n" || c == "\r") {
+            sb.append(" ")
+        } else if (c == "|") {
+            sb.append("\\")
+            sb.append("|")
+        } else {
+            sb.append(c)
+        }
+    }
+    return sb.toString()
+}
+
+@Test
+func testMdCellEscapesPipeAndNewline(): Unit {
+    // 单元格里的 | 会把一行劈成额外的列，整张表从这行起错位。
+    // 命中点都是用户可控文本：`git branch 'feat|injected|branch'` 是合法 ref，
+    // `git commit -m "fix: 标题|带|竖线"` 同理，里程碑名更是任意字符串。
+    // 实测报告里那一行有 7 个单元格而表头只有 4 列。
+    @Assert(mdCell("feat|injected|branch") == "feat\\|injected\\|branch")
+    @Assert(mdCell("标题|带|竖线") == "标题\\|带\\|竖线")
+    // 换行会提前结束这一行
+    @Assert(mdCell("a\nb") == "a b")
+    @Assert(mdCell("a\r\nb") == "a  b")
+    // 正常文本不受影响
+    @Assert(mdCell("main") == "main")
+    @Assert(mdCell("") == "")
+    // ⚠️ 多字节字符必须原样保留。按字节迭代会把 UTF-8 序列拆成独立字符，
+    // 中文全部变乱码（实测报告里「1 分钟前 feat: 标题」变成「1 åéå³é¢å¿ ...」）。
+    @Assert(mdCell("中文测试") == "中文测试")
+    @Assert(mdCell("feat|中文") == "feat\\|中文")
+    @Assert(mdCell("🎉|emoji") == "🎉\\|emoji")
+    // 表头级联：转义后每行的未转义竖线数必须一致（4 列表格 = 5 个）
+    @Assert(mdCell("a|b|c|d|e").split("|").size == 5)
+}
+
+/// 往前找最近的换行，返回它的下标 +1（即该行起点）。找不到就返回 0。
+public func lastIndexBefore(s: String, idx: Int64): Int64 {
+    // ⚠️ 仓颉里 `s[i]` 对 String 给的是 UInt8，不是字符 ——
+    // 拿字符串字面量去比会编译失败（`==` 两边类型不同）。
+    var i = idx - 1
+    while (i >= 0) {
+        if (s[i] == 0x0Au8) {   // '\n'
+            return i + 1
+        }
+        i -= 1
+    }
+    return 0
+}
+
+/// 从 idx 起往后找 needle，返回下标；找不到返回 s.size（调用方自己判越界）。
+public func indexOfFrom(s: String, idx: Int64, needle: String): Int64 {
+    match (s.indexOf(needle, idx)) {
+        case Some(i) => return i
+        case None => return s.size
+    }
+}
+
+/// 引擎支持的语言（**唯一来源**）。
+///
+/// ⚠️ 缺陷 #203：这里原来没有清单，只有一句散落全仓的 `lang != "en"`。
+/// 实测 20 份副本，跨 7 个文件（render 10 / cli 3 / progress 2 / narrative 2 /
+/// report 1 / store 1 / time 1），语义完全相同。
+/// 危害有两层：
+///   ① `config set language fr` 报「✓ 已设置」，而引擎只有 `en` / 中文两条路，
+///      于是**任何非 "en" 的值都渲染成中文** —— 写入口接受了一个引擎不会兑现的值，
+///      与 #202（设了但被丢弃）同族。
+///   ② 将来要加第三种语言，得改 20 处。**漏一处就出半中半英的输出**，
+///      那比单一语言更糟 —— 用户看到的是一份自相矛盾的文件。
+public let SUPPORTED_LANGUAGES = ["zh", "en"]
+
+/// 是不是英文输出。**20 处判定的唯一口径。**
+public func isEnglish(lang: String): Bool {
+    return lang == "en"
+}
+
+/// 语言取值的判据（写入口 / 读路径共用，同 #202 的三层纪律）。
+/// 返回空串表示合法，否则返回该报给用户的原因。
+public func languageError(v: String): String {
+    for (s in SUPPORTED_LANGUAGES) {
+        if (s == v) {
+            return ""
+        }
+    }
+    return "language 只支持：${joinStrings(SUPPORTED_LANGUAGES, ", ")}（收到 \"${v}\"）"
 }
