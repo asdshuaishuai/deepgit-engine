@@ -2221,6 +2221,11 @@ open deepGit.app --args --open-panel    # 启动即开主面板（--project X �
 - 非 git 模式只能感知 mtime，无法得知改动内容。
 - macOS 菜单栏应用为 ad-hoc 签名（`codesign -s -`），分发给他人时对方首次打开需在
   「系统设置 → 隐私与安全性」中放行。
+- **测试沙箱不回收**：`cjpm test` 里用 `mktemp -d` 造 `DEEPGIT_HOME` 的用例跑完不删目录，
+  一次全量测试能留下几十个 `/tmp/dg_*_<时间戳>/`（实测累积 200+ 个）。
+  不影响正确性（macOS 会按年龄清理 `/tmp`），但排查问题时 `/tmp` 里一堆同名目录
+  会干扰判断。要根治：给测试基类加 `defer` 清理，或统一走一个 `withSandbox` 辅助函数。
+  临时清法：`mavis-trash -- /tmp/dg_<前缀>_<某次时间戳前缀>`（逐个传，批量会报假失败）。
 
 <!-- deepgit:begin progress -->
 ## 当前进度（deepGit 维护）
