@@ -1,13 +1,13 @@
 // 浅更新（update）：记录各分支进度到 store + README/AGENT 托管区域。
-package deepgit.flow
+package moongit.flow
 
 import std.collection.*
 import std.env.*
 import std.fs.*
 import std.unittest.*
 import std.unittest.testmacro.*
-import deepgit.kernel.*
-import deepgit.util.*
+import moongit.kernel.*
+import moongit.util.*
 
 public class UpdateOptions {
     public var mode: String = "shallow"

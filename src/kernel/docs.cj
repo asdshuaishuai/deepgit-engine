@@ -3,13 +3,13 @@
 //   <!-- deepgit:begin progress -->
 //   …生成内容…
 //   <!-- deepgit:end progress -->
-package deepgit.kernel
+package moongit.kernel
 
 import std.collection.*
 import std.fs.*
 import std.unittest.*
 import std.unittest.testmacro.*
-import deepgit.util.*
+import moongit.util.*
 
 public class Region {
     public let name: String
@@ -591,7 +591,7 @@ public func previewRegions(filePath: String, regions: ArrayList<(String, String)
 /// 什么时候没有真备份？`applyRegions` 只在 `exists` 为真时才留备份
 /// （见上面 `if (exists && !backupDir.isEmpty())`）—— 也就是
 /// **引擎自己新建的文档一份快照都没有**。实测：注册一个只有 a.txt 的空仓库，
-/// 跑一次 `deepgit update` 生成 README.md，再 `deepgit verify`：
+/// 跑一次 `moongit update` 生成 README.md，再 `moongit verify`：
 ///   备份目录里只有 `.docpath` 与 `.owned`，没有真备份
 ///   → verify 拿 README 的非托管区域去和字符串 "progress"（.owned 的内容）比
 ///   → 报「非托管区域与上次写入前不一致（你之后编辑过，或引擎改动了托管区域
@@ -760,7 +760,7 @@ public func readBackupManifest(backupDir: String): String {
 /// 缺陷 #201：`config set update.backupKeep 0` 原来放行（只拦负数），
 /// 而 `pruneBackups` 也只拦负数，于是 0 走到「excess = names.size - 0」=
 /// **把全部备份删光**，包括 `applyRegions` 在同一次运行里刚为用户文件建的那份。
-/// 实测：`backupKeep=0` 跑一次 `deepgit update proj` →
+/// 实测：`backupKeep=0` 跑一次 `moongit update proj` →
 ///   引擎报「✓ 已更新 README.md」、exit 0、托管区写进了用户的 README，
 ///   而备份文件数 = 0。用户的原文永久丢失，引擎全程报告成功。
 ///
@@ -1649,7 +1649,7 @@ func testPruneBackupsRefusesToDeleteOnNegativeKeep(): Unit {
     // 它把 0 当成「用户明确要求不留备份」。但 keep=0 的实际行为不是「不留备份」，
     // 而是 **applyRegions 先建一份、pruneBackups 同一轮把它删掉** ——
     // 引擎做完了建备份的全套工作，然后亲手销毁它。
-    // 端到端实测（backupKeep=0 跑一次 `deepgit update proj`）：
+    // 端到端实测（backupKeep=0 跑一次 `moongit update proj`）：
     //     引擎输出「✓ 已更新 README.md」、exit 0，托管区写进了用户的 README，
     //     备份文件数 = 0。用户的原文永久丢失，而引擎全程报告成功。
     //

@@ -1,12 +1,12 @@
 // 叙述规则引擎：确定性的提交分类与摘要启发式。
 // 引擎是 AI 无关的——LLM 增强由上层 AI 实现（deepGit.app）通过引擎的
 // 上下文（`context --json`）与工具（`tools --json`）接口完成。
-package deepgit.kernel
+package moongit.kernel
 
 import std.collection.*
 import std.unittest.*
 import std.unittest.testmacro.*
-import deepgit.util.*
+import moongit.util.*
 
 let TYPE_PATTERNS: Array<(String, String)> = [
     ("feat", "新增"),

@@ -1,12 +1,12 @@
 // Agent 接口：为上层 AI 实现（deepGit.app / 未来的 deepDesign 式层）提供
 // 「所需的一切」——预算内的 markdown 上下文包 + 可执行工具清单。
 // 引擎本身是 AI 无关的：这里只做确定性的事实组装与裁剪。
-package deepgit.flow
+package moongit.flow
 
 import std.collection.*
 import std.env.*
-import deepgit.kernel.*
-import deepgit.util.*
+import moongit.kernel.*
+import moongit.util.*
 import std.unittest.*
 import std.unittest.testmacro.*
 
@@ -513,8 +513,8 @@ public func safeSliceAtLine(s: String, maxBytes: Int64): String {
 /// 原来每个工具带 `method` + `path`（`GET /api/context?scope=group` …），
 /// 末尾 note 还写着「由上层 AI 通过 HTTP 调用执行」。
 /// HTTP 服务端已按「传输层只在本机进程之间通信、不跨网络」整体删除（AGENTS.md 第一条不变量：
-/// **没有 HTTP 服务，没有 `deepgit serve`，没有 `/api/*`**），
-/// 于是 `deepgit tools --json` 每次调用都在教 agent 去打 10 个不存在的端点。
+/// **没有 HTTP 服务，没有 `moongit serve`，没有 `/api/*`**），
+/// 于是 `moongit tools --json` 每次调用都在教 agent 去打 10 个不存在的端点。
 /// 唯一没暴露的原因是客户端 `engineToolDefinitions` 只读 name/description/params，
 /// 把这两列丢掉了 —— 那是调用方的将就，不是这里没坏。
 ///

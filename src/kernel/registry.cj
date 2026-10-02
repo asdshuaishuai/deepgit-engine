@@ -1,12 +1,12 @@
 // 项目注册表：记录被管理的项目群。
-package deepgit.kernel
+package moongit.kernel
 
 import std.collection.*
 import std.fs.*
 import std.env.*
 import std.unittest.*
 import std.unittest.testmacro.*
-import deepgit.util.*
+import moongit.util.*
 
 public class ProjectEntry {
     public let id: String
@@ -144,7 +144,7 @@ public func saveRegistry(reg: Registry): Unit {
 /// 全局注册表文件的互斥锁。
 ///
 /// registry.json 同样是跨项目的单文件，而项目锁管不到它。
-/// 并发 `deepgit add`（例如菜单栏扫描与命令行 add 同时跑）会各自读到同一份旧快照、
+/// 并发 `moongit add`（例如菜单栏扫描与命令行 add 同时跑）会各自读到同一份旧快照、
 /// 各自全量覆盖 → 先写者的新项目永久消失，而两条命令都返回成功。
 public func withRegistryLock<T>(body: () -> T): T {
     return withLockWaiting(deepgitPath(["locks", "registry.lock"]), 60000, 30000, body)
@@ -269,7 +269,7 @@ public func requireProject(ref: String): ProjectEntry {
     match (findProject(ref)) {
         case Some(p) => return p
         case None =>
-            throw DgError.notFound("未找到项目：${ref}（可用 `deepgit list` 查看，或 `deepgit scan` 扫描注册）")
+            throw DgError.notFound("未找到项目：${ref}（可用 `moongit list` 查看，或 `moongit scan` 扫描注册）")
     }
 }
 

@@ -1,5 +1,5 @@
 // 随机/稳定 ID 生成。
-package deepgit.util
+package moongit.util
 
 import std.collection.*
 import std.sync.*

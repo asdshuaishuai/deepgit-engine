@@ -1,5 +1,5 @@
 // 路径工具：~ 展开、全局数据目录、项目 ID、相对路径。
-package deepgit.util
+package moongit.util
 
 import std.collection.*
 import std.env.*
@@ -572,7 +572,7 @@ func testDeepgitHomeOverride(): Unit {
 
 @Test
 func testPrettyPath(): Unit {
-    let long = "/Volumes/data/dev/coding/deepcodeUI/deepGit/engine/src/util"
+    let long = "/Volumes/data/dev/coding/deepcodeUI/deepGit/moonGit/src/util"
     let p = prettyPath(long, 30)
     @Assert(p.size <= 30)
     @Assert(prettyPath("/short", 30) == "/short")

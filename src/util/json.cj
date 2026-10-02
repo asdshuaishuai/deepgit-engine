@@ -1,5 +1,5 @@
 // 手写 JSON 解析/序列化（零依赖）。对象保持插入顺序，保证状态文件稳定可 diff。
-package deepgit.util
+package moongit.util
 
 import std.collection.*
 import std.math.*

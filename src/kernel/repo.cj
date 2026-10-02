@@ -1,5 +1,5 @@
 // 仓库事实采集：把 git 数据规整成 AI 可读的结构化事实。
-package deepgit.kernel
+package moongit.kernel
 
 import std.collection.*
 import std.fs.*
@@ -7,7 +7,7 @@ import std.sync.*
 import std.time.*
 import std.unittest.*
 import std.unittest.testmacro.*
-import deepgit.util.*
+import moongit.util.*
 
 /// 单个仓库最多纳入多少个跟踪文件。
 ///
@@ -904,7 +904,7 @@ func collectDirFacts(root: String, config: Config): RepoFacts {
 @Test
 func testLanguageOf(): Unit {
     @Assert(languageOf("src/main.swift") == "Swift")
-    @Assert(languageOf("engine/src/main.cj") == "Cangjie")
+    @Assert(languageOf("moonGit/src/main.cj") == "Cangjie")
     @Assert(languageOf("a/b.mbt.md") == "MoonBit")
     @Assert(languageOf("x.tsx") == "TypeScript")
     @Assert(languageOf("README.md") == "Markdown")

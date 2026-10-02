@@ -2,12 +2,12 @@
 //
 // 设计取舍：进度状态存全局 store 而非项目内 —— 使状态天然跨分支安全，
 // 不会污染任何工作区，也不产生「记录进度」的提交噪音。项目内只写生成文档。
-package deepgit.kernel
+package moongit.kernel
 
 import std.collection.*
 import std.env.*
 import std.fs.*
-import deepgit.util.*
+import moongit.util.*
 import std.unittest.*
 import std.unittest.testmacro.*
 
@@ -303,7 +303,7 @@ public func appendJournal(projectId: String, entry: JsonValue, projectName: Stri
     sb.append("\n\n> 由 deepGit 自动维护，最新条目在最上方。")
     if (truncated) {
         sb.append("**本文件仅显示最近 ${JOURNAL_MD_KEEP} 条**，不是全部历史；")
-        sb.append("更早的记录在同目录的 journal.jsonl 里，用 `deepgit journal <项目> --limit N` 查看。")
+        sb.append("更早的记录在同目录的 journal.jsonl 里，用 `moongit journal <项目> --limit N` 查看。")
     }
     sb.append("\n\n")
     for (i in 0..keep) {

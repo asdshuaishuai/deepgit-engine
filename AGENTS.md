@@ -56,7 +56,7 @@ cjpm test --parallel 1
 ```sh
 sh scripts/deepgit.sh status --json     # 推荐：自动处理工具链与 rpath
 # 或
-engine/target/release/bin/main status
+moonGit/target/release/bin/main status
 ```
 
 - **macOS 26/27+ 关键坑**：系统 SDK 的 `libSystem.tbd` 只声明 `arm64e-macos`，
@@ -75,7 +75,7 @@ engine/target/release/bin/main status
   `kernel/milestones.cj` 严格同名——引擎改键 = 破坏契约。CLI `status [项目] --json` 恒定 envelope
   `{projects, summary, language}`，单项目与多项目同形状，客户端只按这一种形状解码。
   MenuBarExtra 内容是**懒加载**的：启动期逻辑放 AppDelegate，别放 BarView 的 `.task`。
-- ⚠️ **改任何 JSON 键名/增删字段后必须跑 `clients/macos/deepGit/scripts/contract-check.sh`。**
+- ⚠️ **改任何 JSON 键名/增删字段后必须跑 `deepDolphin/macos/scripts/contract-check.sh`。**
   那类破坏**编译期发现不了、代码评审也看不出来**（引擎侧和客户端侧各自看着都合理），
   只在真解码时才炸。已实证的代价：P0-1 `status(name:)` 按裸 `ProjectStatus` 解码而引擎
   恒返回 envelope —— 100% 必现的 `Key 'id' not found`，详情面板每次打开都崩。
@@ -85,7 +85,7 @@ engine/target/release/bin/main status
   全部项目失败时 stdout 是否仍带可解析 JSON（**且该场景必须真的是非 0 退出**，
   否则这条断言整个空转——加过一个常驻沙箱项目后 exit 悄悄变 0，已踩过）、
   MCP 三个出口的形状、以及**降级态键集 == 健康态键集**。
-  已挂进 `clients/macos/deepGit/build.sh` 末尾（`CONTRACT_STRICT=1` 可令其阻断）。
+  已挂进 `deepDolphin/macos/build.sh` 末尾（`CONTRACT_STRICT=1` 可令其阻断）。
   它当场抓出过 4 个真不一致，其中 3 个在引擎侧：`dashboard` 的里程碑条目曾缺
   `tagName` / `createdAt` / `completedAt` / `id`，且 `tag` 键在两个出口里**同名不同义**
   （`milestone list` 里是用户绑定的 tag，`dashboard` 里是解析后的 tagName）。
@@ -268,7 +268,7 @@ util → kernel → ai → flow → cli
    于是「本机能跑」证明的是开发机装了 SDK，不是 app 自包含。
    改法是**重写**：先 `codesign --remove-signature`（install_name_tool 拒改已签名二进制），
    逐条 `-delete_rpath "<路径字符串>"` 删光（**收字符串不收序号**，传序号报错但退出码仍是 0），
-   再按 `@executable_path/../Frameworks` 等相对顺序加回。见 `clients/macos/deepGit/build.sh`。
+   再按 `@executable_path/../Frameworks` 等相对顺序加回。见 `deepDolphin/macos/build.sh`。
 
 8. **放进 `Contents/Resources/` 的可执行文件必须单独签名。**
    `codesign --force --deep --sign - <bundle>` 只把 `Contents/MacOS`、`Frameworks/`、
@@ -1773,7 +1773,7 @@ util → kernel → ai → flow → cli
     这条是本轮真实踩到的，而且症状与病因隔着三层。
     我给 `ProjectStatus` 补 `overall` / `dirty` 时，把两个子结构的字段
     声明成了非可选（`let summary: String`）。而引擎在**采集失败**时
-    是这么发的（`engine/src/flow/status.cj:361`）：
+    是这么发的（`moonGit/src/flow/status.cj:361`）：
     ```json
     "overall": {}, "dirty": {}
     ```
@@ -1821,7 +1821,7 @@ util → kernel → ai → flow → cli
 77. **同一个判定只能有一个出处；客户端不得复刻引擎的阈值。**
     我在分支卡上写了一句
     `b.staleDays >= 30 ? .orange : .tertiary`，而引擎的档位线是
-    **3 天 / 14 天**（`engine/src/kernel/progress.cj:30-36`）：
+    **3 天 / 14 天**（`moonGit/src/kernel/progress.cj:30-36`）：
     ```swift
     if (d < 3.0)  { return "active" }
     if (d < 14.0) { return "idle" }
@@ -2073,7 +2073,7 @@ util → kernel → ai → flow → cli
 
 91. **负控改了引擎源码并重建之后，还原时必须重建回去。**
     注入 `pendingCommits` 的旧实现时重建了一次引擎，于是
-    `engine/target/release/bin/main` 变成了**注入版**。
+    `moonGit/target/release/bin/main` 变成了**注入版**。
     还原源码（sha 核对通过）之后我没重建二进制 ——
     下一轮契约检查就挂了 1 条，原因是「引擎报的值对不上」，
     与它声称的判据（徽章的数据源）**完全无关**。
@@ -2259,7 +2259,7 @@ util → kernel → ai → flow → cli
 
 100. **自动化视觉验证有边界：能用它排除，不能用它确诊。**
     连续三轮挂着「视觉未验证，只能靠人眼」这个待办，直到写了个离屏渲染
-    harness（`clients/macos/deepGit/scripts/render-harness/`）把真实视图渲成 PNG。
+    harness（`deepDolphin/macos/scripts/render-harness/`）把真实视图渲成 PNG。
     它确实把一批问题从盲区里拿了出来（三态文案、EmptyState、卡片圆角接缝、
     分段条配色、spacing 等值替换后的观感），但**它自己也会撒谎**。
 
@@ -2822,11 +2822,11 @@ export DEEPGIT_HOME=/tmp/deepgit-test
 cjpm test
 
 # macOS 客户端（独立 SwiftPM 项目；主面板 + 菜单栏 bar，纯展示层）
-cd clients/macos/deepGit
+cd deepDolphin/macos
 sh build.sh                    # swift build -c release + 组装 .app + ad-hoc 签名
 open deepGit.app --args --open-panel    # 启动即开主面板（--project X 直达详情）
 # 深链调试：--section milestones | --project deepGit
-# 构建期会尝试把引擎（~/.local/bin/deepgit 或 engine/target/release/bin/main）
+# 构建期会尝试把引擎（~/.local/bin/deepgit 或 moonGit/target/release/bin/main）
 # 与仓颉运行时 dylib 内嵌进 .app（~59MB），使 app 可独立分发；不内嵌则按
 # DEEPGIT_BIN → 内嵌副本 → ~/.local/bin → 登录 shell PATH 的顺序发现引擎。
 ```
@@ -2916,12 +2916,12 @@ _（本节由 deepGit 依据仓库事实生成，可运行 `deepgit update --mod
 
 ```
 (根目录 4 个文件)
-clients/ (63)
+deepDolphin/ (63)
   macos/ (60)
     deepGit/ (60)
   web/ (3)
     assets/ (2)
-engine/ (31)
+moonGit/ (31)
   src/ (29)
     ai/ (3)
     cli/ (2)

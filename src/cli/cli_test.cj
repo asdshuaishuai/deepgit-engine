@@ -1,13 +1,13 @@
 // CLI 层测试：位置参数解析与展示行格式。
-package deepgit.cli
+package moongit.cli
 
 import std.collection.*
 import std.env.*
 import std.unittest.*
 import std.unittest.testmacro.*
-import deepgit.flow.*
-import deepgit.kernel.*
-import deepgit.util.*
+import moongit.flow.*
+import moongit.kernel.*
+import moongit.util.*
 
 // ------------------------------ 测试 ------------------------------
 
@@ -473,7 +473,7 @@ func testCmdReportRejectsMultipleProjects(): Unit {
 /// `buildDashboard(reg.projects, ...)` —— 它只证明了「渲染函数给什么数就写什么数」，
 /// 根本没经过 `cmdReport` 那个决定「传什么进去」的地方。
 /// 于是把 `let dashProjects = targets` 改回错误版本，测试**照样全绿**（负控验证时实测），
-/// 而真实 `deepgit report` 输出的「已注册」当场从 2 掉回 1。
+/// 而真实 `moongit report` 输出的「已注册」当场从 2 掉回 1。
 /// 教训：抽成纯函数只是第一步，还得有一条真的走调用方的断言。
 ///
 /// 负控（曾真实发红）：整群报告退回报 `targets`（已滤掉 disabled），
@@ -533,7 +533,7 @@ func testCmdReportGroupReportCountsDisabledAsRegistered(): Unit {
 @Test
 func testUnknownFlagsAreRejected(): Unit {
     // 旧实现里未知 flag 落进 positionals 后被无声丢弃：
-    // `deepgit status --bogus` 照常 exit 0，`--limti 5` 照常用默认 20 条。
+    // `moongit status --bogus` 照常 exit 0，`--limti 5` 照常用默认 20 条。
     // 打错一个字母 = 「命令成功执行，但用的是默认值」，自动化里最难查的一类。
     for (bad in ["--bogus", "--limti", "--dryrun", "--jsonn", "-z"]) {
         var threw = false
@@ -642,7 +642,7 @@ private func goneEntryForDashboard(name: String): ProjectEntry {
     return ProjectEntry(projectIdFor(gone), name, gone, "git", "", nowIso(), ArrayList<String>(), false)
 }
 
-// 行为级回归：`deepgit milestone reopen <项目> <名称> -q` 在「写入没生效」时
+// 行为级回归：`moongit milestone reopen <项目> <名称> -q` 在「写入没生效」时
 // 必须仍然告警。
 //
 // 原来的代码是：
@@ -1205,7 +1205,7 @@ func testMilestoneEmptyStateDistinguishesOrphansFromNothing(): Unit {
     @Assert(rc5 == 1)
 }
 
-// #158 回归（一）：`deepgit list` 不得采集停用项目。
+// #158 回归（一）：`moongit list` 不得采集停用项目。
 //
 // 真实故障：2 个项目，on2 手工置 disabled:true。
 // 修之前 `list` 的输出是：
@@ -1240,7 +1240,7 @@ func testListSkipsCollectionForDisabledProjects(): Unit {
 @Test
 func testListSummaryLineDisclosesDisabledCount(): Unit {
     // 无停用时不能凭空多出括号
-    @Assert(listSummaryLine(2, 0) == "共 2 个项目。用 `deepgit status <项目>` 看详情。")
+    @Assert(listSummaryLine(2, 0) == "共 2 个项目。用 `moongit status <项目>` 看详情。")
     // 有停用时必须写明，并且写清是「不参与统计」——否则用户以为坏掉了
     let line = listSummaryLine(2, 1)
     @Assert(line.contains("共 2 个项目"))
@@ -1741,7 +1741,7 @@ func testDocsWithTwoNamesMustReturnBothProjects(): Unit {
 
 /// #196：元数固定的命令（add / milestone）多出来的位置参数必须报错。
 /// 吞掉它等于把拼写错误变成一次「成功」——
-/// `deepgit add <路径> <名称>` 这种写法**一直**不生效（名字只认 `--name`），
+/// `moongit add <路径> <名称>` 这种写法**一直**不生效（名字只认 `--name`），
 /// 却打印「✓ 已注册」。本次审计里我自己就踩了两次。
 @Test
 func testFixedArityCommandsRejectExtraPositionals(): Unit {

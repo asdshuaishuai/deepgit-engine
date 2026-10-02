@@ -6,7 +6,7 @@
 //   （HTTP 服务端已整体删除：AGENTS.md 第一条不变量「没有 /api/*」）
 // - 无状态：除显式写操作外全部只读；写操作走与 CLI 相同的锁与白名单
 // - AI 无关：MCP 只暴露事实与动作，供任何 MCP 宿主（Claude/其它 agent）消费
-package deepgit.cli
+package moongit.cli
 
 import std.collection.*
 import std.console.*
@@ -14,9 +14,9 @@ import std.convert.*
 import std.env.*
 import std.unittest.*
 import std.unittest.testmacro.*
-import deepgit.flow.*
-import deepgit.kernel.*
-import deepgit.util.*
+import moongit.flow.*
+import moongit.kernel.*
+import moongit.util.*
 
 // ------------------------------ 工具清单 ------------------------------
 
@@ -48,7 +48,7 @@ func mcpTool(name: String, desc: String, schema: JsonValue): JsonValue {
     return t
 }
 
-/// MCP 工具全集（与 `deepgit tools --json` 同源能力，进程内直连）
+/// MCP 工具全集（与 `moongit tools --json` 同源能力，进程内直连）
 public func mcpToolList(): JsonValue {
     let arr = ArrayList<JsonValue>()
     arr.add(mcpTool("list_projects", "列出全部已注册项目及一句话现状", mcpSchemaObject([], [])))
@@ -76,7 +76,7 @@ public func mcpToolList(): JsonValue {
     //      实测会改写所有项目的 README」）。那次只加在客户端，
     //      引擎自己的 MCP 工具表里这一层**没跟上**。
     //   ③ 工具描述写的是「浅更新」——单数，默认动作与描述不符。
-    // 引擎 CLI 的 `deepgit update`（不带名字 = 全部）仍然保留；
+    // 引擎 CLI 的 `moongit update`（不带名字 = 全部）仍然保留；
     // 那是**人**敲的命令，而这里是**模型**填的参数表。
     arr.add(mcpTool("run_shallow_update", "浅更新：记录各分支进度并刷新文档托管区域。name 必填；传 * 表示整个项目群", mcpSchemaObject([("name", "string", "项目名或 ID；传 * 表示全部项目")], ["name"])))
     arr.add(mcpTool("run_deep_update", "深度更新：重写 overview/architecture/commands/history。name 必填（与 run_shallow_update / run_track 同构）", mcpSchemaObject([("name", "string", "项目名或 ID"), ("scope", "string", "all|readme|agent")], ["name"])))
@@ -275,7 +275,7 @@ public func mcpCallTool(name: String, args: JsonValue): JsonValue {
                 //     （cli.cj 的注释原话：「恒定 envelope 形状…（客户端契约）」）。
                 //
                 // 消费方要共用解码器就得写两个分支 —— 这是**已知且刻意**的取舍，
-                // 由 clients/macos/deepGit/scripts/contract-check.sh 的第 10 组断言钉住，
+                // 由 deepDolphin/macos/scripts/contract-check.sh 的第 10 组断言钉住，
                 // 改形状会立刻红。
                 return mcpText(Json.pretty(st), false)
             case "get_dashboard" =>
@@ -1447,7 +1447,7 @@ func testMcpShallowUpdateSchemaMarksNameRequired(): Unit {
 
 /// #198：`addProject` 不得收下**空名**项目。
 ///
-/// 实测 `deepgit add /` 与 MCP `add_project {"path": ""}` 都能注册出
+/// 实测 `moongit add /` 与 MCP `add_project {"path": ""}` 都能注册出
 /// `name=""`、`path="/"` 的条目，后果不是「多一行」：
 ///   ① 那条项目**永远引用不到** —— `findProjectIn` 对空 ref 直接返回 None，
 ///      连 `remove` 都删不掉它；

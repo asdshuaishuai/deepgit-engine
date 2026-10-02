@@ -1,5 +1,5 @@
 // 文本处理工具：宽度计算、截断、Markdown 规整、JSON 提取。
-package deepgit.util
+package moongit.util
 
 import std.collection.*
 import std.unittest.*

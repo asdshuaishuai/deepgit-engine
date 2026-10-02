@@ -1,12 +1,12 @@
 // git 封装：所有 git 访问都经此处，返回结构化数据。
-package deepgit.kernel
+package moongit.kernel
 
 import std.collection.*
 import std.fs.*
 import std.convert.*
 import std.unittest.*
 import std.unittest.testmacro.*
-import deepgit.util.*
+import moongit.util.*
 
 /// 记录分隔符（与 util/exec 的 git 调用配合）
 /// 字段分隔符。**必须**是 NUL：git 只禁止提交信息含 NUL，对 0x1f/0x1e 毫无限制，

@@ -1,13 +1,13 @@
 // 深度更新（deep）：手动触发的全量文档重写（overview/history/architecture/commands）。
-package deepgit.flow
+package moongit.flow
 
 import std.collection.*
 import std.env.*
 import std.fs.*
 import std.unittest.*
 import std.unittest.testmacro.*
-import deepgit.kernel.*
-import deepgit.util.*
+import moongit.kernel.*
+import moongit.util.*
 
 public class DeepOptions {
     public var scope: String = "all"  // all | readme | agent

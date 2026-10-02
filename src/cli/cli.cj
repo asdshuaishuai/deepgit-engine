@@ -1,12 +1,12 @@
 // CLI 命令层：解析参数并分派到各模块。
-package deepgit.cli
+package moongit.cli
 
 import std.collection.*
 import std.convert.*
 import std.env.*
-import deepgit.flow.*
-import deepgit.kernel.*
-import deepgit.util.*
+import moongit.flow.*
+import moongit.kernel.*
+import moongit.util.*
 
 public class CliContext {
     public let args: ArrayList<String>
@@ -106,7 +106,7 @@ func hasFlag(args: ArrayList<String>, name: String): Bool {
 /// 参数中用 -- 分隔后要剔除 flag 对
 ///
 /// `--` 之后一律按字面量处理。以前 `--` 只是被当成一个无值 flag 跳过，
-/// 后面仍然是 flag 空间，于是 `deepgit update -- --note "v2"` 里的 --note
+/// 后面仍然是 flag 空间，于是 `moongit update -- --note "v2"` 里的 --note
 /// 照样被解析成 flag，项目名/路径以 `-` 开头时根本没有表达方式。
 func positionalsOnly(args: ArrayList<String>, valueFlags: Array<String>): ArrayList<String> {
     let out = ArrayList<String>()
@@ -172,7 +172,7 @@ public func main2(argv: ArrayList<String>): Int64 {
     match (command) {
         case "--help" => printHelp(); return 0
         case "help" => printHelp(); return 0
-        case "version" => printOut("deepGit Engine 0.1.0 (Cangjie 1.0.5 LTS)"); return 0
+        case "version" => printOut("moonGit Engine 0.1.0 (Cangjie 1.0.5 LTS)"); return 0
         case "list" => return cmdList(rest, ctx)
         case "add" => return cmdAdd(rest, ctx)
         case "remove" => return cmdRemove(rest, ctx)
@@ -249,7 +249,7 @@ private func looksLikeFlag(s: String): Bool {
 /// 未知 flag 必须报错。
 ///
 /// 旧实现里未知 flag 落进 positionals 后被 positionalsOnly 无声丢弃：
-/// `deepgit status --bogus` 照常 exit 0，`--limti 5` 照常用默认 20 条。
+/// `moongit status --bogus` 照常 exit 0，`--limti 5` 照常用默认 20 条。
 /// 打错一个字母的结果是「命令成功执行，但用的是默认值」—— 自动化脚本里最难查的一类。
 func validateKnownFlags(args: ArrayList<String>): Unit {
     for (a in args) {
@@ -273,9 +273,9 @@ func validateKnownFlags(args: ArrayList<String>): Unit {
 
 /// 带值 flag 必须紧跟一个真正的值，缺值一律报错，不允许静默取到下一个 flag。
 ///
-/// 旧实现里 flagValue() 只看下一个 token，于是 `deepgit add <path> --name --note`
+/// 旧实现里 flagValue() 只看下一个 token，于是 `moongit add <path> --name --note`
 /// 会把 "--note" 当成项目名写进 registry（已实证：项目真的被注册成 "--note"）；
-/// 而 `deepgit report --out` 缺值时静默回落到默认路径，用户以为指定了输出位置。
+/// 而 `moongit report --out` 缺值时静默回落到默认路径，用户以为指定了输出位置。
 /// 报错文案引导改用 `--flag=值` 形式 —— 该形式是单个 token，不受此校验影响，
 /// 因此确实需要传 `--` 开头的值时仍然可用。`--` 之后的 token 是字面量，不校验。
 func validateValueFlags(args: ArrayList<String>): Unit {
@@ -306,7 +306,7 @@ func validateValueFlags(args: ArrayList<String>): Unit {
 func cmdGit(rest: ArrayList<String>, ctx: CliContext): Int64 {
     let refs = positionalsOnly(rest, VALUE_FLAGS)
     if (refs.size == 0) {
-        throw DgError.usage("用法：deepgit git <pull|push|commit|stash|unstash|fetch> [项目] [--message M]")
+        throw DgError.usage("用法：moongit git <pull|push|commit|stash|unstash|fetch> [项目] [--message M]")
     }
     let op = refs[0]
     var message = ""
@@ -327,7 +327,7 @@ func cmdGit(rest: ArrayList<String>, ctx: CliContext): Int64 {
     let targets = resolveTargets(restNoOp, false)
     var failed = false
     // ⚠️ 收集而不是就地打印：旧实现在项目循环里逐个 printOut，于是
-    // `deepgit git log`（不指定项目 → 全部项目）输出 N 份首尾相接的 JSON 文档，
+    // `moongit git log`（不指定项目 → 全部项目）输出 N 份首尾相接的 JSON 文档，
     // 整份 stdout 非法，任何 JSONDecoder 都解不出来。
     // 单项目正常、一多项目就崩，症状是「偶发」，最难查。
     let gitResults = ArrayList<JsonValue>()
@@ -407,10 +407,10 @@ func effectiveMilestoneStatus(project: ProjectEntry, name: String, requested: St
 func cmdMilestone(rest: ArrayList<String>, ctx: CliContext): Int64 {
     let refs = positionalsOnly(rest, VALUE_FLAGS)
     if (refs.size == 0) {
-        throw DgError.usage("用法：deepgit milestone <add|list|done|drop|remove> [项目] [名称] [--tag T] [--date YYYY-MM-DD] [--desc S]")
+        throw DgError.usage("用法：moongit milestone <add|list|done|drop|remove> [项目] [名称] [--tag T] [--date YYYY-MM-DD] [--desc S]")
     }
     // ⚠️ #196：各子命令原来只查「至少 3 个」，多出来的位置参数被静默吞掉
-    // （`deepgit milestone add alpha v1 extra` → 「✓ 已创建」rc=0，extra 蒸发）。
+    // （`moongit milestone add alpha v1 extra` → 「✓ 已创建」rc=0，extra 蒸发）。
     // 里程碑的元数是**固定**的（项目 + 名称），第 4 个参数不可能有别的含义，
     // 吞掉它等于把拼写错误变成一次「成功」。
     rejectExtraPositionals("milestone ${refs[0]}", refs, 3)   // 动作 + 项目 + 名称
@@ -418,7 +418,7 @@ func cmdMilestone(rest: ArrayList<String>, ctx: CliContext): Int64 {
     match (action) {
         case "add" =>
             if (refs.size < 3) {
-                throw DgError.usage("用法：deepgit milestone add <项目> <名称> [--tag T] [--date YYYY-MM-DD] [--desc S]")
+                throw DgError.usage("用法：moongit milestone add <项目> <名称> [--tag T] [--date YYYY-MM-DD] [--desc S]")
             }
             let p = requireProject(refs[1])
             let name = refs[2]
@@ -528,7 +528,7 @@ func cmdMilestone(rest: ArrayList<String>, ctx: CliContext): Int64 {
             return 0
         case "done" | "drop" | "reopen" =>
             if (refs.size < 3) {
-                throw DgError.usage("用法：deepgit milestone ${action} <项目> <名称>")
+                throw DgError.usage("用法：moongit milestone ${action} <项目> <名称>")
             }
             let p = requireProject(refs[1])
             let status = match (action) {
@@ -566,7 +566,7 @@ func cmdMilestone(rest: ArrayList<String>, ctx: CliContext): Int64 {
             } else {
                 // ⚠️ 这一支不能被 --quiet 吞掉。
                 // 原来 `if (!ctx.quiet) { if (...) ok else warn }` 把两种结果
-                // 一起关掉了，于是 `deepgit milestone set X done -q` 在
+                // 一起关掉了，于是 `moongit milestone set X done -q` 在
                 // 「写入没生效」时**什么都不打**、退出码仍是 0 ——
                 // 用户以为里程碑达成，实际被 tag 规则压回 open。
                 // 这不是日志安静，是谎报结果。
@@ -577,7 +577,7 @@ func cmdMilestone(rest: ArrayList<String>, ctx: CliContext): Int64 {
             return 0
         case "remove" =>
             if (refs.size < 3) {
-                throw DgError.usage("用法：deepgit milestone remove <项目> <名称>")
+                throw DgError.usage("用法：moongit milestone remove <项目> <名称>")
             }
             let p = requireProject(refs[1])
             if (!removeMilestone(p.id, refs[2])) {
@@ -758,8 +758,8 @@ func cmdReport(rest: ArrayList<String>, ctx: CliContext): Int64 {
 /// ⚠️ 这是 #196 的接缝。原来 `cmdDocs` / `cmdRemove` 各写了一份
 /// `targets.add(requireProject(refs[0]))` —— **只取第一个**，
 /// 其余项目名静默丢弃，退出码还是 0：
-///   `deepgit docs alpha beta --json` → rc=0，输出只有 alpha 的 envelope
-///   `deepgit remove alpha beta`      → rc=0，beta 原封不动留在注册表里
+///   `moongit docs alpha beta --json` → rc=0，输出只有 alpha 的 envelope
+///   `moongit remove alpha beta`      → rc=0，beta 原封不动留在注册表里
 /// `remove` 那个尤其恶劣：取消注册是破坏性操作，
 /// 「要注销两个、只注销一个、还告诉我成功了」会让用户把 beta 也划掉。
 ///
@@ -792,7 +792,7 @@ func cmdDocs(rest: ArrayList<String>, ctx: CliContext): Int64 {
     if (refs.size > 0) {
         // ⚠️⚠️ #196：原来这里是 `targets.add(requireProject(refs[0]))` ——
         // **只取第一个**，其余项目名静默丢弃，退出码还是 0。
-        // 实测 `deepgit docs alpha beta --json`：
+        // 实测 `moongit docs alpha beta --json`：
         //     rc=0, 输出 = {"project":"alpha","docs":[…],"unreadable":[]}
         // beta 一个字都没出现，也没有任何「已忽略」提示。
         // 用户（和 agent）会以为这就是两个项目的完整答案。
@@ -982,7 +982,7 @@ func cmdSkill(rest: ArrayList<String>, ctx: CliContext): Int64 {
             }
             return 0
         case _ =>
-            throw DgError.usage("用法：deepgit skill <print|install> [--dir D]")
+            throw DgError.usage("用法：moongit skill <print|install> [--dir D]")
     }
 }
 
@@ -1097,7 +1097,7 @@ func milestoneListSelection(projects: ArrayList<ProjectEntry>, allMs: ArrayList<
     }
     // 孤儿：projectId 在注册表里已经对不上任何项目。
     //
-    // 实测 `deepgit remove orph` 之后，用户手写的「v1.0 重要里程碑」
+    // 实测 `moongit remove orph` 之后，用户手写的「v1.0 重要里程碑」
     // 数据还在 milestones.json 里，但 milestone list 报「（无里程碑）」exit 0。
     // 用户看到的是「remove 掉的项目，它的里程碑也没了」，
     // 实际是「还在，但每条命令都看不见」。
@@ -1223,9 +1223,9 @@ func cmdDashboard(rest: ArrayList<String>, ctx: CliContext): Int64 {
 }
 
 func printHelp(): Unit {
-    printOut("deepGit Engine — git-based local project progress engine")
+    printOut("moonGit Engine — git-based local project progress engine")
     printOut("")
-    printOut("用法：deepgit <命令> [参数] [--json] [-q] [-v]")
+    printOut("用法：moongit <命令> [参数] [--json] [-q] [-v]")
     printOut("")
     printOut("命令：")
     printOut("  list                     列出已注册项目及一句话现状")
@@ -1290,7 +1290,7 @@ func resolveTargets(rest: ArrayList<String>, allowAll: Bool): ArrayList<ProjectE
     let cwd = normalizePath(expandHome(getCwd()))
     match (findProject(cwd)) {
         case Some(p) => out.add(p)
-        case None => throw DgError.notFound("当前目录不属于任何已注册项目（可用 `deepgit add .` 注册）")
+        case None => throw DgError.notFound("当前目录不属于任何已注册项目（可用 `moongit add .` 注册）")
     }
     return out
 }
@@ -1317,12 +1317,12 @@ func requireWorkableTargets(targets: ArrayList<ProjectEntry>): Unit {
     // 走到这里必然是 allowAll 分支，所以「为空」只有两种成因，且必须分开说
     let reg = loadRegistry()
     if (reg.projects.isEmpty()) {
-        throw DgError.notFound("尚未注册任何项目，没有可处理的内容；先运行 `deepgit scan <根目录>` 或 `deepgit add <路径>`")
+        throw DgError.notFound("尚未注册任何项目，没有可处理的内容；先运行 `moongit scan <根目录>` 或 `moongit add <路径>`")
     }
     // 全部被停用：同样是「没有活可干」，但成因不同。
     // 笼统说「尚未注册」会让用户去跑一遍 scan，发现还是不行。
     //
-    // ⚠️ 这里**不能**建议 `deepgit enable` —— 引擎根本没有这个子命令。
+    // ⚠️ 这里**不能**建议 `moongit enable` —— 引擎根本没有这个子命令。
     // `disabled` 字段全代码只读不写（registry.cj 只有 `toJson` / 反序列化两处触碰），
     // 唯一能置 true 的途径是手改 registry.json。给一个不存在的命令，
     // 是「静默降级成事实性谎言」的另一种形态：不是没说，是说错了。
@@ -1375,7 +1375,7 @@ func dashboardLanguageNotes(dash: JsonValue, shown: Int64): ArrayList<String> {
     return out
 }
 
-/// `deepgit list` 单行的「现状」列。**纯函数**。
+/// `moongit list` 单行的「现状」列。**纯函数**。
 ///
 /// 抽出来的原因不是洁癖：cmdList 直接 printOut，测试截不到 stdout，
 /// 「停用项目有没有被采集」这个判定就只能靠人眼看输出 —— 而这正是
@@ -1407,7 +1407,7 @@ func listRowHeadline(p: ProjectEntry, config: Config): String {
     }
 }
 
-/// `deepgit list` 的分母行。
+/// `moongit list` 的分母行。
 ///
 /// list 列的是**注册表**（含已停用），dashboard / status 报的是
 /// **可处理项目**（排除已停用）。两个数不同是设计使然，但两边都沉默时
@@ -1415,7 +1415,7 @@ func listRowHeadline(p: ProjectEntry, config: Config): String {
 /// 所以停用数必须写出来，把「口径不同」变成「口径已知」。
 func listSummaryLine(total: Int64, disabledCount: Int64): String {
     let note = if (disabledCount > 0) { "（${disabledCount} 个已停用，不参与统计）" } else { "" }
-    return "共 ${total} 个项目${note}。用 `deepgit status <项目>` 看详情。"
+    return "共 ${total} 个项目${note}。用 `moongit status <项目>` 看详情。"
 }
 
 func cmdList(rest: ArrayList<String>, ctx: CliContext): Int64 {
@@ -1437,7 +1437,7 @@ func cmdList(rest: ArrayList<String>, ctx: CliContext): Int64 {
         return 0
     }
     if (reg.projects.size == 0) {
-        Log.info("尚未注册任何项目。运行 `deepgit scan <根目录>` 或 `deepgit add <路径>`。")
+        Log.info("尚未注册任何项目。运行 `moongit scan <根目录>` 或 `moongit add <路径>`。")
         return 0
     }
     let rows = ArrayList<Array<String>>()
@@ -1457,9 +1457,9 @@ func cmdList(rest: ArrayList<String>, ctx: CliContext): Int64 {
 func cmdAdd(rest: ArrayList<String>, ctx: CliContext): Int64 {
     let refs = positionalsOnly(rest, VALUE_FLAGS)
     if (refs.size == 0) {
-        throw DgError.usage("用法：deepgit add <路径> [--name 名称]")
+        throw DgError.usage("用法：moongit add <路径> [--name 名称]")
     }
-    // ⚠️ #196：原来多出来的位置参数被静默丢弃（`deepgit add /p n1 n2` → rc=0）。
+    // ⚠️ #196：原来多出来的位置参数被静默丢弃（`moongit add /p n1 n2` → rc=0）。
     // 项目名走的是 `--name`，第二个位置参数**没有**别的含义 ——
     // 静默吞掉它等于把用户的拼写错误（以为可以直接写名字）变成成功。
     rejectExtraPositionals("add", refs, 1)   // 项目名走 --name，不是第二个位置参数
@@ -1486,11 +1486,11 @@ func cmdAdd(rest: ArrayList<String>, ctx: CliContext): Int64 {
 func cmdRemove(rest: ArrayList<String>, ctx: CliContext): Int64 {
     let refs = positionalsOnly(rest, VALUE_FLAGS)
     if (refs.size == 0) {
-        throw DgError.usage("用法：deepgit remove <项目...> [--purge]")
+        throw DgError.usage("用法：moongit remove <项目...> [--purge]")
     }
     let purge = hasFlag(rest, "--purge")
     // ⚠️⚠️ #196：原来只处理 `refs[0]`，其余项目名静默丢弃、退出码 0。
-    // 实测 `deepgit remove alpha beta` → 「✓ 已取消注册：alpha」rc=0，
+    // 实测 `moongit remove alpha beta` → 「✓ 已取消注册：alpha」rc=0，
     // 而 beta **原封不动留在注册表里**（`list` 仍能看到）。
     // 这是本族里最有害的一个：取消注册是**破坏性操作**，
     // 「要注销两个、只注销一个、还告诉我成功了」比不响应更糟 ——
@@ -1660,7 +1660,7 @@ func cmdScan(rest: ArrayList<String>, ctx: CliContext): Int64 {
     if (roots.size == 0) {
         let config = loadConfig()
         if (config.roots.size == 0) {
-            throw DgError.usage("用法：deepgit scan <根目录...> [--depth N]\n（可在配置里设 roots 作为默认扫描根：deepgit config set roots a,b）")
+            throw DgError.usage("用法：moongit scan <根目录...> [--depth N]\n（可在配置里设 roots 作为默认扫描根：deepgit config set roots a,b）")
         }
         for (r in config.roots) {
             roots.add(r)
@@ -1874,7 +1874,7 @@ func printSingleStatus(project: ProjectEntry, config: Config): Int64 {
         }
         printOut(renderTable(["分支", "状态", "HEAD", "最近提交", "标记", "摘要"], rows.toArray()))
     } else {
-        printOut(if (zh) { "（暂无进度记录，运行 `deepgit update` 生成）" } else { "(no progress yet)" })
+        printOut(if (zh) { "（暂无进度记录，运行 `moongit update` 生成）" } else { "(no progress yet)" })
     }
 
     let progressMeta = Json.getOr(status, "progress")
@@ -2236,7 +2236,7 @@ func cmdJournal(rest: ArrayList<String>, ctx: CliContext): Int64 {
         let filtered = entries
         if (ctx.json) {
             // 收集而不是就地打印：旧实现在项目循环里逐个 printOut 数组，
-            // 于是 `deepgit journal --json`（不指定项目 → 默认全部项目）
+            // 于是 `moongit journal --json`（不指定项目 → 默认全部项目）
             // 会输出 N 个首尾相接的 JSON 数组，整份 stdout 非法，任何 JSONDecoder 都解不出来。
             // 归属不用我们补：readJournal 的条目本来就带 project / projectId 字段，
             // 所以单项目输出与旧版字节一致，多项目则靠该字段区分来源。
@@ -2371,7 +2371,7 @@ func cmdJournal(rest: ArrayList<String>, ctx: CliContext): Int64 {
 func cmdHook(rest: ArrayList<String>, ctx: CliContext): Int64 {
     let sub = positionalsOnly(rest, VALUE_FLAGS)
     if (sub.size == 0) {
-        throw DgError.usage("用法：deepgit hook <install|uninstall|status> [项目]")
+        throw DgError.usage("用法：moongit hook <install|uninstall|status> [项目]")
     }
     let action = sub[0]
     // 去掉动作词本身，resolveTargets 只应看到项目引用
@@ -2387,7 +2387,7 @@ func cmdHook(rest: ArrayList<String>, ctx: CliContext): Int64 {
     let targets = resolveTargets(restNoAction, false)
     var failed = false
     // ⚠️ 同 cmdGit / cmdTrack：多项目 --json 只能输出一份文档。
-    // 旧实现在项目循环里逐个 printOut，`deepgit hook install --json`（不指定项目）
+    // 旧实现在项目循环里逐个 printOut，`moongit hook install --json`（不指定项目）
     // 会吐出 N 个首尾相接的 JSON 数组，整份 stdout 非法。
     let hookResults = ArrayList<JsonValue>()
     for (p in targets) {
@@ -2518,7 +2518,7 @@ func cmdConfig(rest: ArrayList<String>, ctx: CliContext): Int64 {
     }
     if (sub[0] == "get") {
         if (sub.size < 2) {
-            throw DgError.usage("用法：deepgit config get <键>")
+            throw DgError.usage("用法：moongit config get <键>")
         }
         let key = sub[1]
         // ⚠️ #194：未知键**必须报错**，不能返回 null + rc=0。
@@ -2539,7 +2539,7 @@ func cmdConfig(rest: ArrayList<String>, ctx: CliContext): Int64 {
     }
     if (sub[0] == "set") {
         if (sub.size < 3) {
-            throw DgError.usage("用法：deepgit config set <键> <值>")
+            throw DgError.usage("用法：moongit config set <键> <值>")
         }
         let key = sub[1]
         let value = sub[2]
@@ -2977,7 +2977,7 @@ func cmdDoctor(rest: ArrayList<String>, ctx: CliContext): Int64 {
     checks.add(["git", if (gitOk) { "OK" } else { "缺失" }, if (gitOk) { gitRun(".", ["--version"], true) } else { "需要安装 git" }])
     checks.add(["数据目录", if (isDirectoryPath(deepgitHome())) { "OK" } else { "未创建" }, deepgitHome()])
     let reg = loadRegistry()
-    checks.add(["注册项目", "${reg.projects.size}", "用 `deepgit scan` 添加"])
+    checks.add(["注册项目", "${reg.projects.size}", "用 `moongit scan` 添加"])
     let missing = ArrayList<String>()
     for (p in reg.projects) {
         if (!isDirectoryPath(p.path)) {

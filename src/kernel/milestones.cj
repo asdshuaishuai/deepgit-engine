@@ -2,12 +2,12 @@
 //
 // 存储在全局 ~/.deepgit/milestones.json（单文件、跨项目聚合友好）。
 // 完成判定支持两种来源：手工标记 done，或绑定 git tag 自动检测（tag 存在即达成）。
-package deepgit.kernel
+package moongit.kernel
 
 import std.collection.*
 import std.convert.*
 import std.env.*
-import deepgit.util.*
+import moongit.util.*
 import std.unittest.*
 import std.unittest.testmacro.*
 

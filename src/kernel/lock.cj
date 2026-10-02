@@ -1,5 +1,5 @@
 // 锁：防止并发更新同一项目。
-package deepgit.kernel
+package moongit.kernel
 
 import std.collection.*
 import std.fs.*
@@ -8,7 +8,7 @@ import std.sync.*
 import std.time.*
 import std.unittest.*
 import std.unittest.testmacro.*
-import deepgit.util.*
+import moongit.util.*
 
 /// 简单 pid+时间戳文件锁；超过 staleMs 的陈旧锁会被接管。
 ///
@@ -63,7 +63,7 @@ public func withLock<T>(lockFile: String, staleMs: Int64, body: () -> T): T {
 /// README 托管区，而两个进程都 exit 0。
 ///
 /// 实测（本轮）：持锁 pid 活着、锁目录 mtime 回拨 20 分钟 →
-///   `deepgit update repo` 直接进入临界区、exit 0、原 holder.json 被覆盖删除；
+///   `moongit update repo` 直接进入临界区、exit 0、原 holder.json 被覆盖删除；
 /// 同一实验把 mtime 保持新鲜 → 正确报「该项目正在更新中」、exit 1、锁完好。
 ///
 /// 契约：**持锁者活着 = 绝不动它，年龄一概不看。**

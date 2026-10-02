@@ -1,5 +1,5 @@
 // 状态聚合：CLI / Web / macOS 菜单栏三端共用的单一事实源。
-package deepgit.flow
+package moongit.flow
 
 import std.collection.*
 import std.env.*
@@ -7,8 +7,8 @@ import std.sync.*
 import std.time.*
 import std.unittest.*
 import std.unittest.testmacro.*
-import deepgit.kernel.*
-import deepgit.util.*
+import moongit.kernel.*
+import moongit.util.*
 
 public func projectStatus(project: ProjectEntry, config: Config, journalLimit: Int64): JsonValue {
     let facts = collectFacts(project.path, project.kind, config, 15, false)

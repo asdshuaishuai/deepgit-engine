@@ -5,14 +5,14 @@
 // - 钩子后台异步调用 deepgit track，提交不等待任何扫描或 AI
 // - 托管块标记：重装只替换 deepGit 自己的块，其余内容保留；
 //   卸载只删这一块
-package deepgit.kernel
+package moongit.kernel
 
 import std.collection.*
 import std.env.*
 import std.fs.*
 import std.unittest.*
 import std.unittest.testmacro.*
-import deepgit.util.*
+import moongit.util.*
 
 let HOOK_BEGIN = "# deepgit:begin"
 let HOOK_END = "# deepgit:end"

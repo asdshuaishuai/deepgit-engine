@@ -1,12 +1,14 @@
 #!/bin/sh
-# deepGit 安装脚本：构建引擎 + 装到 PATH + 可选构建 macOS 菜单栏应用
+# moonGit 安装脚本：构建引擎 + 装到 PATH + 可选构建 macOS 菜单栏应用
 set -e
 
 DIR="$(cd "$(dirname "$0")/.." && pwd)"
 ENGINE="$DIR"
-PREFIX="${DEEPGIT_PREFIX:-$HOME/.local/bin}"
+# 命令名 2026-10-03 起是 moongit。MOONGIT_PREFIX 是新的，
+# DEEPGIT_PREFIX 保留为兼容入口（老 shell 配置里可能还写着它）。
+PREFIX="${MOONGIT_PREFIX:-${DEEPGIT_PREFIX:-$HOME/.local/bin}}"
 
-echo "deepGit 安装"
+echo "moonGit 安装"
 echo "  仓库：$DIR"
 echo "  安装到：$PREFIX"
 echo
@@ -79,9 +81,9 @@ echo "  构建成功（日志：/tmp/deepgit-build.log）"
 BIN=""
 for CANDIDATE in \
   "$ENGINE/target/release/bin/main" \
-  "$ENGINE/target/release/bin/deepgit" \
+  "$ENGINE/target/release/bin/moongit" \
   "$ENGINE/target/debug/bin/main" \
-  "$ENGINE/target/debug/bin/deepgit"; do
+  "$ENGINE/target/debug/bin/moongit"; do
   if [ -x "$CANDIDATE" ]; then BIN="$CANDIDATE"; break; fi
 done
 
@@ -92,9 +94,21 @@ fi
 
 # ------------------------------- 安装 CLI -------------------------------
 mkdir -p "$PREFIX"
-cp "$BIN" "$PREFIX/deepgit"
-chmod 755 "$PREFIX/deepgit"
-echo "✓ 已安装：$PREFIX/deepgit"
+cp "$BIN" "$PREFIX/moongit"
+chmod 755 "$PREFIX/moongit"
+echo "✓ 已安装：$PREFIX/moongit"
+
+# 兼容软链：老脚本、老习惯里敲的还是 `deepgit`。
+#
+# ⚠️ 引擎的**数据目录仍然是 ~/.deepgit**、文档托管区域标记仍然是
+#    `<!-- deepgit:begin -->` —— 这两样是用户既有数据与既有文档里的内容，
+#    跟着仓改名会把它们变成孤儿（引擎认不出已托管的区域，于是另开新区）。
+#    所以本次只改「命令名」这一层，落在磁盘上的东西一律不动。
+#
+# 软链而不是拷贝：拷贝会出现两份各自独立、版本不一致的二进制，
+# 而 `moongit upgrade` 只更新本体，旧名字那份会永远停在旧版本。
+ln -sf moongit "$PREFIX/deepgit"
+echo "✓ 兼容软链：$PREFIX/deepgit -> moongit"
 
 if ! echo ":$PATH:" | grep -q ":$PREFIX:"; then
   echo
@@ -105,15 +119,18 @@ fi
 # ------------------------------- 验证 -------------------------------
 echo
 echo "› 自检："
-"$PREFIX/deepgit" doctor 2>&1 | head -12
+"$PREFIX/moongit" doctor 2>&1 | head -12
 
-# macOS 客户端（deepGit.app）单独构建：
-#   sh clients/macos/deepGit/build.sh   （在 deepgit-clients 仓库中）
+# macOS 客户端（deepDolphin.app）单独构建：
+#   sh deepDolphin/macos/build.sh   （在 deepDolphin 仓库中）
 
 echo
 echo "下一步："
-echo "  1. 注册项目群：deepgit scan ~/dev --depth 4"
-echo "  2. 查看进度：  deepgit status"
-echo "  3. 浅更新：    deepgit update"
-echo "  4. 装提交钩子：deepgit hook install <项目>"
-echo "  5. 配 AI（可选）：export DEEPGIT_AI_API_KEY=... && deepgit config set ai.preset deepseek"
+echo "  1. 注册项目群：moongit scan ~/dev --depth 4"
+echo "  2. 查看进度：  moongit status"
+echo "  3. 浅更新：    moongit update"
+echo "  4. 装提交钩子：moongit hook install <项目>"
+echo "  5. 配 AI（可选）：export DEEPGIT_AI_API_KEY=... && moongit config set ai.preset deepseek"
+echo
+echo "  旧命令名 deepgit 仍可用（软链到 moongit）；"
+echo "  数据目录 ~/.deepgit 与文档托管区域标记均未改动。"

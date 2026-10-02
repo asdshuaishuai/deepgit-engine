@@ -12,7 +12,7 @@
 // （它自己的测试也是恒真的：`@Assert(status == 0 || status > 0)`
 //   对任何 Int64 都成立、`@Assert(body.size >= 0)` 同理，
 //   那种测试永远不会红，属于"看起来在跑、实际什么都没验"。）
-package deepgit.util
+package moongit.util
 
 import std.collection.*
 import std.convert.*

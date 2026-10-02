@@ -1,11 +1,11 @@
 // 项目扫描器：在给定根目录下发现项目（git 仓库 或 带清单+README 的目录）。
-package deepgit.kernel
+package moongit.kernel
 
 import std.collection.*
 import std.fs.*
 import std.unittest.*
 import std.unittest.testmacro.*
-import deepgit.util.*
+import moongit.util.*
 
 let SCAN_SKIP_DIRS = ["node_modules", ".git", ".svn", ".hg", ".build", ".swiftpm", "DerivedData", "dist", "build", "target", "__pycache__", ".venv", "venv", ".next", ".cache", ".gradle", ".idea", "_build", "coverage", "Library", ".Trash", "renders", "snapshots", ".playwright-mcp", ".zcode", "tmp"]
 

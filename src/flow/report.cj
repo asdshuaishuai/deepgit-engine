@@ -1,10 +1,10 @@
 // 报告导出：把项目群进度渲染成一份自包含的 Markdown 报告。
-package deepgit.flow
+package moongit.flow
 
 import std.collection.*
 import std.env.*
-import deepgit.kernel.*
-import deepgit.util.*
+import moongit.kernel.*
+import moongit.util.*
 import std.unittest.*
 import std.unittest.testmacro.*
 
