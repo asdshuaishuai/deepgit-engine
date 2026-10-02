@@ -1,11 +1,27 @@
-# AGENTS.md — deepGit 工作区指南
+# AGENTS.md — moonGit 工作区指南
 
-deepGit Engine：基于 git 历史的本地项目群进度引擎（跨平台核心，**AI 无关**）。**100% 仓颉实现，零第三方依赖**（JSON/SHA-256/Markdown 渲染全部自研）。
-外部依赖只有系统 `git` 与 `curl`。本仓库是引擎；各平台 UI 层在 deepgit-clients 仓库（macOS 客户端 deepGit.app 已实现：菜单栏常驻 + 主面板）。
+moonGit Engine：基于 git 历史的本地项目群进度引擎（跨平台核心，**AI 无关**）。**100% 仓颉实现，零第三方依赖**（JSON/SHA-256/Markdown 渲染全部自研）。
+外部依赖只有系统 `git` 与 `curl`。本仓库是引擎；各平台 UI 层在 deepDolphin 仓库（macOS 客户端 deepDolphin.app 已实现：菜单栏常驻 + 主面板）。
+
+> 🔴 **改名时的硬边界：改名字，不改身份。** 引擎已从 deepGit 更名为 **moonGit**，
+> 但下列字面量**必须保持原样**，它们是既有数据与既有外部契约，不是显示名：
+>
+> | 保持不变 | 它是什么 |
+> |---|---|
+> | `~/.deepgit/`（`paths.cj` 的 `homeDir() + "/.deepgit"`） | 用户已积累的进度库与注册表。改名 = 引擎在空目录重来，旧数据变孤儿 |
+> | `<!-- deepgit:begin ... -->`（`docs.cj`） | 已写进用户手写 README/AGENTS 的字面量。改了引擎认不出托管区，会**另开新区**而不是就地更新 |
+> | `DEEPGIT_HOME` / `DEEPGIT_BIN` / `DEEPGIT_MANAGED_DOCS` / `DEEPGIT_SDKROOT` | 外部调用方（客户端、CI、别人的 shell profile）的既有接口 |
+> | `deepgit://project/{id}`（`mcp.cj`） | 已发布的 MCP 资源 URI，是协议标识符不是名字。改了打断所有已配置好的 MCP 客户端，零功能收益 |
+> | `deepgitHome()`（函数名） | 同上，纯内部标识；改名要动 5 个文件 12 处，而它是「解析 `~/.deepgit` 的那个函数」，名字与职责一致 |
+>
+> 反向的坑同样真实：`install.sh` 装 `moongit` 时**必须**留 `deepgit → moongit` 软链，
+> `main.cj` 的 argv[0] 判定**必须**同时认新旧两个名字 ——
+> 否则老脚本会拿到「未知命令」，且这类失败发生在用户机器上而不是 CI 上。
+> 完整对照表见 [README.md](README.md) 的「命名」一节。
 
 > **传输层哲学：只在本机进程之间通信，不跨网络。** 引擎对客户端只暴露两条通道——
-> CLI（`deepgit <命令> --json`，**以子进程方式调用**）与 MCP（`deepgit mcp`，stdio JSON-RPC）。
-> **没有 HTTP 服务，没有 `deepgit serve`，没有 `/api/*`。**
+> CLI（`moongit <命令> --json`，**以子进程方式调用**）与 MCP（`moongit mcp`，stdio JSON-RPC）。
+> **没有 HTTP 服务，没有 `moongit serve`，没有 `/api/*`。**
 >
 > ⚠️ 早先这里写的是「只用**进程内**通信」，而同一句话下一行就写着「以子进程方式调用」——
 > 两句自相矛盾，而且「进程内」这个词把**没实现**的 FFI（同一进程、同一地址空间）
@@ -23,7 +39,7 @@ export SDKROOT="$HOME/.local/share/sdks/MacOSX.minimal/latest"  # macOS 26/27+ �
 
 cd engine
 cjpm build          # 构建 → target/release/bin/main
-cjpm test           # 491 项测试 —— ⚠️ 必须带 DEEPGIT_HOME，见下方红线
+cjpm test           # 492 项测试 —— ⚠️ 必须带 DEEPGIT_HOME，见下方红线
 cjpm build -i       # 增量构建（改单文件时更快）
 ```
 
@@ -51,10 +67,10 @@ cjpm test --parallel 1
 本次实测**没有改到用户任何文件内容**（store 下 26 个项目文件时间戳未变），
 留下的是空目录，但「跑测试会碰真实数据」本身就是缺陷。
 
-**运行二进制必须带运行时路径**（或直接用 `scripts/deepgit.sh` 包装）：
+**运行二进制必须带运行时路径**（或直接用 `scripts/moongit.sh` 包装）：
 
 ```sh
-sh scripts/deepgit.sh status --json     # 推荐：自动处理工具链与 rpath
+sh scripts/moongit.sh status --json     # 推荐：自动处理工具链与 rpath
 # 或
 moonGit/target/release/bin/main status
 ```
@@ -66,9 +82,9 @@ moonGit/target/release/bin/main status
   `scripts/install.sh` 会自动下载 macOS 15.5 SDK 并裁剪到 `~/.local/share/sdks/MacOSX.minimal/latest`；
   也可 `sh scripts/build-minimal-sdk.sh <源SDK目录>` 手动生成，或 `export DEEPGIT_SDKROOT=` 指定现成 SDK。
   STS 1.2.0 / 1.3.0-alpha 的链接器同样是 15.0.4，升版本解决不了此问题。
-- **deepGit（mac 客户端）注意**：双形态——MenuBarExtra `.window` 弹窗（bar，辅助）+
+- **deepDolphin（mac 客户端）注意**：双形态——MenuBarExtra `.window` 弹窗（bar，辅助）+
   NSWindow 主面板（PanelWindowController 承载 PanelView，可 `--open-panel --project X --section milestones`
-  深链启动）。**它是纯客户端**：数据全部走 **CLI 子进程**（`EngineCLI.swift` 拉起 `deepgit <命令> --json`，
+  深链启动）。**它是纯客户端**：数据全部走 **CLI 子进程**（`EngineCLI.swift` 拉起 `moongit <命令> --json`，
   `AIClient.swift` 是其类型安全封装）——读 `status` / `dashboard` / `milestone list` / `journal` / `docs`，
   写 `update` / `deep` / `track` / `git <op>`。**不走 HTTP 网络**。
   契约模型集中在 `Models.swift`，键名与引擎 `flow/status.cj`、`flow/dashboard.cj`、
@@ -89,7 +105,7 @@ moonGit/target/release/bin/main status
   它当场抓出过 4 个真不一致，其中 3 个在引擎侧：`dashboard` 的里程碑条目曾缺
   `tagName` / `createdAt` / `completedAt` / `id`，且 `tag` 键在两个出口里**同名不同义**
   （`milestone list` 里是用户绑定的 tag，`dashboard` 里是解析后的 tagName）。
-  注意：脚本按 `../../../engine/...` 定位仓内 release；用已安装的旧版会报出一堆假失败。
+  注意：脚本按 `../../moonGit/...` 定位仓内 release；用已安装的旧版会报出一堆假失败。
 - ⚠️ **披露字段一律恒发，键集不得随数据变化。**
   写成 `if (!gitReadable) 才加 unverifiedReason` 时，键集就随数据漂了：
   实测健康态 17 键、降级态 CLI 18 键而 dashboard 17 键。后果是消费方只能靠
@@ -215,24 +231,24 @@ util → kernel → ai → flow → cli
 - **面板级 git 操作走 `runGitOp` 白名单**（kernel/git.cj）：pull（--ff-only）/ push（无 upstream 自动
   补 -u origin）/ commit（必须带 message，身份用 `gitUserName/gitUserEmail` 兜底）/ stash / unstash / fetch。
   **不要往里加 reset/clean/force-push**——这是给 GUI 客户端的按钮用的，误触即事故。
-  CLI 入口 `deepgit git <op> [项目] --json`；文档内容 `deepgit docs [项目] --json`（单文件 200KB 截断）。
+  CLI 入口 `moongit git <op> [项目] --json`；文档内容 `moongit docs [项目] --json`（单文件 200KB 截断）。
   注意：release 二进制改了命令行为后必须 `cjpm build` 重出 release，`cjpm test` 只构建测试目标——
   客户端内嵌的是 release 引擎，曾因此出现「测试全绿但内嵌引擎还是旧行为」。
 - **`git worktree list` 不支持 `--format=`**，只有 `--porcelain`（records 以 `worktree ` 行开头）；
   `git stash list` 要用 `--pretty=format:`（`--format=` 会把 `%x1f` 原样输出，`%1f` 也一样）。
   porcelain/相对路径里的 `/tmp` 会被 git 输出成 `/private/tmp`——路径比较一律走 `util/paths.cj` 的
   `samePath()`（词法规范化 + macOS 符号链接容忍）。
-- **MCP 服务器（cli/mcp.cj）**：`deepgit mcp` 以 stdio 单行 JSON-RPC 运行（2024-11-05）。
+- **MCP 服务器（cli/mcp.cj）**：`moongit mcp` 以 stdio 单行 JSON-RPC 运行（2024-11-05）。
   工具执行直连 flow/kernel 层（mcpCallTool），与 CLI 同源；**stdout 是协议通道，
   严禁 printOut 任何非协议内容**（日志恒走 stderr，MCP 模式还会 Log.setQuiet(true)）。
-  新增 agent 能力 = mcpToolList 加清单 + mcpCallTool 加分支，并同步 `deepgit tools --json`（agentToolsManifest）。
+  新增 agent 能力 = mcpToolList 加清单 + mcpCallTool 加分支，并同步 `moongit tools --json`（agentToolsManifest）。
   Cangjie 注意：lambda 语法在此版本不可靠（`{ (a: T) => }` 报错），局部函数用 `func` 嵌套定义。
-- **Skill（cli.cj skillMarkdown）**：`deepgit skill print|install` 输出教学包；
+- **Skill（cli.cj skillMarkdown）**：`moongit skill print|install` 输出教学包；
   内容改动要同步 README 的 MCP 章节。
 - **引擎保持 AI 无关（deepDesign 模式，改前必读）**：`src/ai` 包已删除——provider/prompts 不在引擎里，
   规则启发式在 `kernel/narrative.cj`。AI 的配置、调用、工具循环全部在客户端（AIProvider.swift / AgentView.swift）。
-  引擎对 agent 只暴露两个喂养接口：`deepgit context --json`（flow/agent.cj，预算内 markdown 事实包）与
-  `deepgit tools --json`（工具清单）。**往引擎里加 LLM 调用 = 违反架构**；要让 agent 能做新动作，加引擎工具 + 更新清单即可。
+  引擎对 agent 只暴露两个喂养接口：`moongit context --json`（flow/agent.cj，预算内 markdown 事实包）与
+  `moongit tools --json`（工具清单）。**往引擎里加 LLM 调用 = 违反架构**；要让 agent 能做新动作，加引擎工具 + 更新清单即可。
   注意 `cjpm test` 不重建 release——改了命令行为必须 `cjpm build` 后再装，否则客户端内嵌引擎还是旧行为。
 - **CLI 位置参数解析统一走 `VALUE_FLAGS`**（`cli/cli.cj`）：新增「带值 flag」必须加进这个名单，
   否则它的值会被当成项目名（曾导致 `hook --source hook` 静默解析失败）。
@@ -256,7 +272,7 @@ util → kernel → ai → flow → cli
    语义处理 `aiChatJson` 的失败，并在结果里回报 `aiError`。降级后仍要写进度库与日志。
 
 5. **钩子必须后台异步且永不非零退出**：`post-commit` 与 `post-merge` 共用同一套托管块
-   （`(deepgit track --quiet --source hook >/dev/null 2>&1 &)`），可重复安装/卸载而不破坏用户已有钩子内容。
+   （`(moongit track --quiet --source hook >/dev/null 2>&1 &)`），可重复安装/卸载而不破坏用户已有钩子内容。
 
 6. **状态聚合并发化的边界**：`flow/status.cj` 的 `allProjectStatuses` 用 `std.sync.spawn` 并发采集，
    前提是「只读 + 每项目独立 store」。往 `projectStatus` 里加**写操作**前必须三思；
@@ -289,7 +305,7 @@ util → kernel → ai → flow → cli
     原来它每次都 `var convo = [ChatMessage.user(question)]` 从零起步、用完即弃 ——
     所谓"对话"其实是一串互不相干的一次性提问，模型看不见上一轮。
     「那刚才那个项目后来怎么样了」会拿第一轮的上下文硬答，**而且答得还挺像回事**。
-    多轮版把「拼对话」抽到 `Conversation.seed`（`Sources/deepGit/AgentConversation.swift`），
+    多轮版把「拼对话」抽到 `Conversation.seed`（`deepDolphin/macos/Sources/deepDolphin/AgentConversation.swift`），
     这样"历史会不会被丢"才是**可断言的行为**而不是某一种拼法 ——
     内联在 run 里时，lint 只能查到一种写法，换个写法缺陷就溜过去（NC18 的教训）。
     历史发送前要过 `trimHistory`，否则聊几轮撞上下文上限，
@@ -418,7 +434,7 @@ util → kernel → ai → flow → cli
     一律写 `${VAR}`。`client-check` 第 4 组会扫全部 `.sh` 守住这条。
 
 24. **给 agent / 模型看的输出里，不许携带已删传输层的任何地址。**
-    `agentToolsManifest()`（`deepgit tools --json`）原来给每个工具带
+    `agentToolsManifest()`（`moongit tools --json`）原来给每个工具带
     `method` + `path`（`GET /api/context?scope=group`…），末尾 note 还写着
     「由上层 AI 通过 HTTP 调用执行」——**10 条 `/api/*` 全部指向已整体删除的服务端**，
     与本文件第 7 行的头号不变量直接冲突。清单是**要喂给模型**的，
@@ -484,10 +500,10 @@ util → kernel → ai → flow → cli
     它只证明了「渲染函数给什么数就写什么数」，
     **根本没经过 `cmdReport` 里那个决定「传什么进去」的接缝**。
     于是把 `let dashProjects = …` 退回错误版本（整群报告传已滤掉 disabled 的
-    `targets`），测试**全绿**，而真实 `deepgit report` 的「已注册」当场从 2 掉回 1。
+    `targets`），测试**全绿**，而真实 `moongit report` 的「已注册」当场从 2 掉回 1。
     补法：在调用方所在的包里直接调 `cmdReport` 端到端跑一遍，断言落盘文件的内容。
-    —— 关键是**跨包的测试结构上就抓不到**：调用方在 `deepgit.cli`，
-    而测试在 `deepgit.flow`，那个接缝压根不在测试的执行路径上。
+    —— 关键是**跨包的测试结构上就抓不到**：调用方在 `moongit.cli`，
+    而测试在 `moongit.flow`，那个接缝压根不在测试的执行路径上。
     同理，「测试自己准备数据再喂给纯函数」永远只证明纯函数，
     证明不了**谁在喂它、喂的是什么**。
 
@@ -497,7 +513,7 @@ util → kernel → ai → flow → cli
     模型只要吐一次**畸形的 arguments JSON**，`params` 就成了 `[:]`，
     `name` 取到空串，客户端拼出**空位置参数** `["update", "", …]`；
     而引擎把空位置参数等同于「不传项目名」= **整个项目群**。
-    实测（/tmp 沙箱，两个已注册项目）：`deepgit update "" --json --quiet`
+    实测（/tmp 沙箱，两个已注册项目）：`moongit update "" --json --quiet`
     把两个项目的 README **都改写了**，exit 0，界面上那次调用显示「✓ 执行成功」。
     读侧同样扩大作用域且不报错：`journal ""` 返回所有项目的日志，
     `context ""` 静默退化成整个项目群的上下文。
@@ -723,7 +739,7 @@ util → kernel → ai → flow → cli
     客户端的 `AgentCore` 有两条路取同一份 context：
       · 系统提示词那条路抽 `ctxObj["context"]` → markdown
       · 工具结果那条路（`get_group_context` / `get_project_context`）
-        把整个 `{"scope":…,"budget":…,"context":"# deepGit…\n…"}` 塞进对话
+        把整个 `{"scope":…,"budget":…,"context":"# moonGit…\n…"}` 塞进对话
     而引擎自己的 MCP 工具回的是**裸 markdown**。
     于是同名工具三种形状，模型读到的第一行是 `{"scope":`。
     现在两条路共用 `ContextEnvelope.decode`（零依赖纯函数，client-check 钉住）。
@@ -799,7 +815,7 @@ util → kernel → ai → flow → cli
     两种规则都判它不是失败）。只有 **`{ok:…, code|error:…}` 两个键都带**
     的形状才能把两条规则分开。断言抓不住等于没做。
     ⚠️ 「某条命令必须恒发某组字段」的测试**必须走那条命令本身**：
-    这里的 6 份载荷都是 `deepgit <cmd> --json` 的真实 stdout 逐字抄的，
+    这里的 6 份载荷都是 `moongit <cmd> --json` 的真实 stdout 逐字抄的，
     手搓夹具比现实更完整就永远测不出漏读（同 #188 的教训）。
 
 45. **配置键要么改变行为，要么不存在；「键不存在」必须报错，不许返回 null。**
@@ -838,7 +854,7 @@ util → kernel → ai → flow → cli
       · 剥注释的实现只有一份才谈得上可靠（同 43 的道理）。
 
 46. **「没有证据」不等于「有反证」；判据的输入必须包含它要回答的那个问题。**
-    缺陷 #195 全在 `deepgit verify` 一个命令里，四个独立缺陷同源：
+    缺陷 #195 全在 `moongit verify` 一个命令里，四个独立缺陷同源：
       · **假指控**：`applyRegions` 只在文件**已存在**时才留备份，所以
         **引擎自己新建的文档一份快照都没有**。而备份目录里除真备份外还住着
         两个元数据文件 `.docpath` / `.owned`，cmdVerify 把 `listDir` 的结果
@@ -859,7 +875,7 @@ util → kernel → ai → flow → cli
         **只有读 JSON 的消费方会被骗**（脚本 / 客户端 / MCP 一律只看那个布尔）。
       · **处置建议指错方向**：if 链里 `checked == 0 && missing == 0`
         排在 `undetermined > 0` 前面，于是「无法判定（引擎新建、没有快照）」
-        拿到 note「暂无可校验的文档（**需要先执行 deepgit update**）」——
+        拿到 note「暂无可校验的文档（**需要先执行 moongit update**）」——
         而用户**刚跑过 update**，再跑一次不会有任何变化。
         那句 note 存在的目的就是诱导 agent 重跑 update，所以指错方向
         **比不说更糟**：它会把一份好文档再覆盖一遍，却什么都没修好。
@@ -887,9 +903,9 @@ util → kernel → ai → flow → cli
     缺陷 #196：`cmdDocs` / `cmdRemove` 各写了一份
     `targets.add(requireProject(refs[0]))` —— **只取第一个**，
     其余项目名蒸发，退出码还是 **0**：
-      · `deepgit docs alpha beta --json` → rc=0，输出只有 alpha 的 envelope，
+      · `moongit docs alpha beta --json` → rc=0，输出只有 alpha 的 envelope，
         beta 一个字都没出现，也没有任何「已忽略」提示
-      · `deepgit remove alpha beta` → rc=0，「✓ 已取消注册：alpha」，
+      · `moongit remove alpha beta` → rc=0，「✓ 已取消注册：alpha」，
         **beta 原封不动留在注册表里**（`list` 仍能看到）
     `remove` 那个尤其恶劣：取消注册是**破坏性操作**，
     「要注销两个、只注销一个、还告诉我成功了」比不响应更糟 ——
@@ -906,7 +922,7 @@ util → kernel → ai → flow → cli
       · **元数固定的命令**（add / milestone）走 `rejectExtraPositionals`，
         多出来的位置参数**报错**而不是吞掉 ——
         吞掉它等于把用户的拼写错误变成一次「成功」。
-        真实例子：`deepgit add <路径> <名称>` 这种写法**一直**不生效
+        真实例子：`moongit add <路径> <名称>` 这种写法**一直**不生效
         （名字只认 `--name`），却打印「✓ 已注册」。
         本次审计里我自己就踩了两次 —— 写测试脚本时注册全被守卫挡掉才发现。
     ⚠️ 收口时顺带修掉的：`cmdRemove` 多项目 `--json` 若逐个 `printOut`，
@@ -923,7 +939,7 @@ util → kernel → ai → flow → cli
       · `unreadable`  —— 有目录读不出来（#179）
       · `depthCapped` —— 撞到 `--depth` 上限且下面还有没看过的子目录
     缺第三种的实测后果（仓库在第 4 层）：
-        deepgit scan <树> --depth 2
+        moongit scan <树> --depth 2
         → 「未发现项目（已访问 3 个目录）」exit 0
     仓库明明就在那儿。而同一个函数对「目录过多」早就有正确措辞
     （那句「扫描被截断…本次**未**覆盖全部范围」），只是**深度这条路没接上**。
@@ -955,13 +971,13 @@ util → kernel → ai → flow → cli
     缺陷 #198 是同一族的两处，都属于「空 ≠ 无害」：
       · **`addProject` 收下了空名项目**。`name` 为空时用 `basename(root)` 兜底，
         而 `basename("/")` 是空串，于是
-            deepgit add /                 →  ✓ 已注册：（dir）→ /
+            moongit add /                 →  ✓ 已注册：（dir）→ /
             MCP add_project {"path": ""}  →  已注册：（/）
         写进注册表一条 `name=""`、`path="/"` 的条目。后果不是「多一行」：
           ① 那条项目**永远引用不到** —— `findProjectIn` 对空 ref 返回 None，
              连 `remove` 都删不掉它（用户连补救手段都没有）；
           ② 它**永久污染每一次聚合命令**：实测之后
-             `deepgit status --json` → `summary.failedProjects = 1`，
+             `moongit status --json` → `summary.failedProjects = 1`，
              而那条项目的 error 是「Native function error.」——
              用户看不懂、也查不出是哪来的。
       · **MCP `run_shallow_update` 把缺 name 当成「更新全部项目」**。它是 15 个
@@ -991,7 +1007,7 @@ util → kernel → ai → flow → cli
     ⚠️ 上文那句「已知遗留」已由不变量 50 处置：当时记的是
     「不可采集目录的 error 是运行时原文，措辞质量，非谎报」——
     **那个判断是错的**。同一句 `Native function error.` 在
-    `deepgit add / --name home` 这条路径上的成因不是措辞，是整条命令崩了。
+    `moongit add / --name home` 这条路径上的成因不是措辞，是整条命令崩了。
 
 50. **会失败的系统调用不许当不会失败；「读不到」是第四态，且必须走到用户眼前。**
     缺陷 #199 的成因查清了：`FileInfo` 的属性各自走不同的系统调用，
@@ -1004,9 +1020,9 @@ util → kernel → ai → flow → cli
       · `FileInfo(path)` **构造器本身**也抛。
     而 `collectActivity` 与扫描器的循环体**一个 try/catch 都没有**。
     后果实测：
-      · `deepgit scan /`                  → exit 1「内部错误：Native function error.」
-      · `deepgit scan /private/var/db`    → exit 1 同上
-      · `deepgit add / && deepgit status` → 该项目 `error='Native function error.'`、
+      · `moongit scan /`                  → exit 1「内部错误：Native function error.」
+      · `moongit scan /private/var/db`    → exit 1 同上
+      · `moongit add / && moongit status` → 该项目 `error='Native function error.'`、
         `commitCount=-1`、`userDirtyCount=-1`
     即：**一个只读属性取不到，整个项目的状态面板全黑**。
     而这些路径是**用户自己给的** —— 指向 `/` 或任何系统目录都合法。
@@ -1052,7 +1068,7 @@ util → kernel → ai → flow → cli
       · `fileExists(<doc>)` 在父目录不可读时返回 false，
         于是内层循环一次都不跑，`leftovers` 为空 → 输出「无」。
     实测：磁盘上确实有 `README.md.tmp-999-0`，把项目目录 `chmod 000` 之后
-    `deepgit doctor` 报的是**「临时残留  无」**。磁盘上那个文件就在那儿，它只是没读到。
+    `moongit doctor` 报的是**「临时残留  无」**。磁盘上那个文件就在那儿，它只是没读到。
     危害等级高于一般措辞问题：`doctor` 的退出码语义是「环境能不能用」，
     而这一行是用户判断「我的仓库干不干净」的唯一依据。
     四条硬规则：
@@ -1079,7 +1095,7 @@ util → kernel → ai → flow → cli
     缺陷 #201：`config set update.backupKeep 0` 放行（只拦负数），
     `pruneBackups` 也只拦负数。于是 0 走到
     `excess = names.size - keep = names.size` → **把全部备份删光**。
-    端到端实测（`backupKeep=0` 跑一次 `deepgit update proj`）：
+    端到端实测（`backupKeep=0` 跑一次 `moongit update proj`）：
       引擎输出「✓ 已更新 README.md」、exit 0，托管区**写进了用户的 README**，
       而 `备份文件数 = 0` —— 用户的原文永久丢失，引擎全程报告成功。
     关键在于 **0 与负数的数学后果完全一样**，区别只有语义标签。
@@ -1114,9 +1130,9 @@ util → kernel → ai → flow → cli
     `config set update.maxShallowBranches` 原来**一行校验都没有**。
     实测两条命令就能证：
     ```
-    $ deepgit config set update.maxShallowBranches 0
+    $ moongit config set update.maxShallowBranches 0
     ✓ 已设置 update.maxShallowBranches = 0        ← 报成功（stdout）
-    $ deepgit config get update.maxShallowBranches
+    $ moongit config get update.maxShallowBranches
     6                                              ← 存的是 0，读出来是 6
     ```
     原因是读路径（`configFromJson`）会把 `< 1` 静默修回 6，只在 **stderr** 留一行。
@@ -1575,7 +1591,7 @@ util → kernel → ai → flow → cli
         批量更新虽然动多个仓库，但每个文件都留备份（不变量 62），所以它是
         **告知式**确认、不染红 —— 满屏红会稀释「红=危险」这个信号。
     ⚠️ 同一动作的**每个入口都要有确认**：批量更新在 `BarView`（弹窗）与
-    `DeepGitApp` 的菜单两处都存在。而菜单那条路是 `.commands` 里的 `CommandMenu`
+    `DeepDolphinApp` 的菜单两处都存在。而菜单那条路是 `.commands` 里的 `CommandMenu`
     ——**不是 View**，挂不上 `.confirmationDialog`，所以待确认状态必须放在
     `AppModel.pendingBulkUpdate` 上，由主面板代为呈现。
     漏掉任一入口，这层保护就等于不存在（判据里专门钉了这条）。
@@ -1799,7 +1815,7 @@ util → kernel → ai → flow → cli
     换成不带过滤的 `grep -rn "facts.toJson"` 才看见：
     `repo.cj:951` 与 `984` 两个测试在用它守 JSON 形状契约。
 
-    而且它**确实该保留**：`deepgit docs` 的深更新会把 commitActivity /
+    而且它**确实该保留**：`moongit docs` 的深更新会把 commitActivity /
     authors / tags 写进 markdown（客户端文档页能读到），
     改版规范 D5 又把它列为「复活热力图 / 贡献者 / tag 视图的现成资产」。
     生产路径零调用 ≠ 可以删 —— 要问的是「有没有人在等它」。
@@ -1924,14 +1940,14 @@ util → kernel → ai → flow → cli
     于是 `--project foo` **单独使用会被静默忽略** —— 而主面板本来就是
     「启动自动打开」的，也就是说从命令行传深链必须额外记住加一个
     无关的 `--open-panel`，少加了没有任何提示。
-    复现：`deepGit.app --project target` ⇒ selection 停在默认的 `.dashboard`。
+    复现：`deepDolphin.app --project target` ⇒ selection 停在默认的 `.dashboard`。
     推广：
       · 解析函数里**不要用一个开关当另一个开关的前置条件**，
         除非它们在语义上真的有依赖。
       · 这类缺陷没法靠读代码看出来，因为那行 `guard` 看着很合理 ——
         只有**真的敲一次命令**才会发现。所以启动参数必须**可单测**：
         抽成纯函数（`Route.parse(_ args: [String])`），
-        判据直接喂 `["deepGit", "--project", "target"]`。
+        判据直接喂 `["deepDolphin", "--project", "target"]`。
       · 顺带：参数值本身可能是另一个 flag（`--project --open-panel`）。
         把 `--` 开头的值当名字，就会去加载一个叫「--open-panel」的项目 ——
         而那正好会撞上下一个缺陷（永远转圈）。
@@ -1982,7 +1998,7 @@ util → kernel → ai → flow → cli
 
 86. **照抄设计稿之前，先核对它引用的文件名是不是真的。**
     设计稿的深更新按钮上印着「AGENT.md + README」。照抄进客户端就会告诉用户
-    deepGit 会改一个叫 `AGENT.md` 的文件 —— 而引擎托管的是
+    moonGit 会改一个叫 `AGENT.md` 的文件 —— 而引擎托管的是
     **README / AGENTS / CLAUDE**（无 `.md`）。
     这不是细节：这是**动手前告诉用户会改哪几个文件**的那句话，
     写错一个文件名，用户按下去之后在文件系统里找不到它，
@@ -2692,8 +2708,8 @@ util → kernel → ai → flow → cli
 
 119. **走不上的分支不会报错，只会显得像「保险起见的多余代码」。**
     本轮实例：`AppDelegate.openPanel()` 里那条
-    「窗口已经开着就直接 focus」的快路径判 `w.title == "deepGit"`，
-    而 `PanelView` 的 `.navigationTitle("deepGit 面板")` 覆盖了窗口标题
+    「窗口已经开着就直接 focus」的快路径判 `w.title == "deepDolphin"`，
+    而 `PanelView` 的 `.navigationTitle("deepDolphin 面板")` 覆盖了窗口标题
     （`NSApp.windows[i].title` 取的正是**导航标题**，不是 `Window` 场景的初始标题）
     ⇒ **那个比较永不成立**，每次都落到下面的通知转发。
       · 症状为什么藏得住：功能**没坏**。通知转发那条兜底照样把窗口带出来，
@@ -2805,17 +2821,38 @@ util → kernel → ai → flow → cli
     - 推广：「两组表现一致 ⇒ 不是这里的问题」是**只有对照有效才成立**的推理。
       先自问「这两组除了被测变量，还差什么」，再采信结论。
 
+123. **全局改名时，先分清哪些字面量是「名字」，哪些是「身份」。**
+    - 本项目从 deepGit 改到 moonGit 时，最省事的做法是全局替换 —— 而它会**静默毁数据**。
+    - 判据很简单：**这个字面量被谁持有？**
+      | 谁持有 | 例子 | 能不能改 |
+      |---|---|---|
+      | 本仓源码 | `deepGit Engine` 标题、报告页眉 | 随便改 |
+      | **用户的磁盘** | `~/.deepgit/`、已写进手写 README 的 `<!-- deepgit:begin -->` | **不能** |
+      | **仓外的调用方** | `DEEPGIT_*` 环境变量、`deepgit://` 协议 URI、别人的 shell profile | **不能** |
+    - 托管区标记这一条后果最重：改了它，引擎在用户的 README 里**找不到自己标记的区域**，
+      于是**另开一个新区**而不是就地更新。用户看到的是「引擎把它之前写的段落留在原地、
+      底下又长出一段新的」—— 数据没丢，但文档从此双份，且每次更新都再长一份。
+    - 反向的漏也是真漏：`install.sh` 改了安装名却没留软链、`main.cj` 改了 argv[0] 判定却只认新名，
+      都会让**老用户的既有脚本当场报「未知命令」**。这类缺陷不在 CI 里 ——
+      CI 跑的是新名字，测试全绿，用户机器上才炸。
+    - ⇒ 改名提交前逐条过这张表；改完跑一遍
+      `grep -rn 'deepgit\|deepGit' --include='*.md' --include='*.sh' .`，
+      **逐条判读每处残留是「该留」还是「漏了」**，不要默认「剩下的应该都是对的」。
+      （本轮就靠这条抓到 `client-check.sh` 里两条带转义斜杠的 `Sources\/deepGit\/` sed 模式 ——
+      普通批量替换匹配不上，症状是「编译清单解析出 0 个源文件」。）
+
+
 
 ## 常用命令
 
 ```sh
 # 引擎
-sh scripts/deepgit.sh scan ~/dev --depth 4
-sh scripts/deepgit.sh status --json | jq '.projects | length'
-sh scripts/deepgit.sh update <项目> --no-ai      # 跳过 AI，用规则引擎
-sh scripts/deepgit.sh deep <项目> --scope readme --dry-run
-sh scripts/deepgit.sh context --budget 20000     # agent 上下文包
-sh scripts/deepgit.sh tools                     # agent 工具清单
+sh scripts/moongit.sh scan ~/dev --depth 4
+sh scripts/moongit.sh status --json | jq '.projects | length'
+sh scripts/moongit.sh update <项目> --no-ai      # 跳过 AI，用规则引擎
+sh scripts/moongit.sh deep <项目> --scope readme --dry-run
+sh scripts/moongit.sh context --budget 20000     # agent 上下文包
+sh scripts/moongit.sh tools                     # agent 工具清单
 
 # 测试隔离（不污染真实 ~/.deepgit）
 export DEEPGIT_HOME=/tmp/deepgit-test
@@ -2824,9 +2861,9 @@ cjpm test
 # macOS 客户端（独立 SwiftPM 项目；主面板 + 菜单栏 bar，纯展示层）
 cd deepDolphin/macos
 sh build.sh                    # swift build -c release + 组装 .app + ad-hoc 签名
-open deepGit.app --args --open-panel    # 启动即开主面板（--project X 直达详情）
-# 深链调试：--section milestones | --project deepGit
-# 构建期会尝试把引擎（~/.local/bin/deepgit 或 moonGit/target/release/bin/main）
+open deepDolphin.app --args --open-panel    # 启动即开主面板（--project X 直达详情）
+# 深链调试：--section milestones | --project deepDolphin
+# 构建期会尝试把引擎（~/.local/bin/moongit 或 moonGit/target/release/bin/main）
 # 与仓颉运行时 dylib 内嵌进 .app（~59MB），使 app 可独立分发；不内嵌则按
 # DEEPGIT_BIN → 内嵌副本 → ~/.local/bin → 登录 shell PATH 的顺序发现引擎。
 ```

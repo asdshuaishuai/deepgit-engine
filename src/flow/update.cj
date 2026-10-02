@@ -127,8 +127,8 @@ public func runUpdate(project: ProjectEntry, config: Config, opts: UpdateOptions
     // （store 的 progress/state/journal + 用户仓库里 README/AGENTS 的托管区读-改-写），
     // 而以前这里按 opts.mode 分裂成 track.lock / update.lock，runDeep 又用 project.lock ——
     // 三个互不排斥的锁名意味着「防并发更新」根本没生效：
-    //   deepgit update myproj   （终端 A）
-    //   deepgit track --quiet   （A 刚 commit 完，post-commit 钩子后台自动触发）
+    //   moongit update myproj   （终端 A）
+    //   moongit track --quiet   （A 刚 commit 完，post-commit 钩子后台自动触发）
     // 会同时进入临界区，后写者用陈旧快照覆盖 progress.json，state.json 的 runCount 少加。
     // 锁名表达的是「互斥哪个资源」，不是「做哪种操作」。
     let lockFile = "${store.locks}/project.lock"
@@ -536,7 +536,7 @@ public func recordBranchBaseline(
     }
 
     // 叙述生成：规则引擎（确定性）。引擎是 AI 无关的——
-    // LLM 增强由上层 AI 实现（deepGit.app）基于 /api/context 自行完成。
+    // LLM 增强由上层 AI 实现（deepDolphin.app）基于 /api/context 自行完成。
     var narratives = HashMap<String, BranchNarrative>()
     let provider = "rules"
     for (d in deltas) {
@@ -1389,7 +1389,7 @@ func testDocWriteFailureStillPersistsProgressToStore(): Unit {
         // 锁住 AGENTS.md（不可变位：权限位仍是 0644，查权限位抓不到）
         let agents = repo + "/AGENTS.md"
         let agentsAfterRound1 = readFileTextOr(agents, "")
-        @Assert(agentsAfterRound1.contains("deepGit"))
+        @Assert(agentsAfterRound1.contains("moonGit"))
         execCapture("chflags", ["uchg", agents], None, 8000)
         locked = agents
 

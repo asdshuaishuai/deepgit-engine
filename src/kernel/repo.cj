@@ -512,7 +512,7 @@ public func collectFacts(root: String, kind: String, config: Config, commits: In
     let (accessible, timedOut) = volumeAccessibleEx(root)
     if (!accessible) {
         let hint = if (timedOut) {
-            "无法访问 ${root} —— 访问被持续阻塞，很可能是 macOS 未授予「可移除宗卷」访问权限（系统设置 → 隐私与安全性 → 文件与文件夹 → deepGit）"
+            "无法访问 ${root} —— 访问被持续阻塞，很可能是 macOS 未授予「可移除宗卷」访问权限（系统设置 → 隐私与安全性 → 文件与文件夹 → moonGit）"
         } else {
             "路径不存在或卷未挂载：${root}"
         }

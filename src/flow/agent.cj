@@ -1,4 +1,4 @@
-// Agent 接口：为上层 AI 实现（deepGit.app / 未来的 deepDesign 式层）提供
+// Agent 接口：为上层 AI 实现（deepDolphin.app / 未来的 deepDesign 式层）提供
 // 「所需的一切」——预算内的 markdown 上下文包 + 可执行工具清单。
 // 引擎本身是 AI 无关的：这里只做确定性的事实组装与裁剪。
 package moongit.flow
@@ -184,7 +184,7 @@ public func buildAgentContext(
     let dash = buildDashboard(targets, config)
     let sb = StringBuilder()
 
-    sb.append("# deepGit 项目群上下文\n\n")
+    sb.append("# moonGit 项目群上下文\n\n")
     sb.append("> 生成于 ${formatDateTime(nowIso())} · 引擎为 AI 无关内核，以下为确定性事实\n\n")
 
     // ⚠️ 存储损坏必须在**第一屏**说，不能只躺在某个项目的字段里。
@@ -623,7 +623,7 @@ func testBuildAgentContextEmpty(): Unit {
     let config = Config.defaults()
     let reg = Registry()
     let ctx = buildAgentContext(reg.projects, config, "group", "", 8000)
-    @Assert(ctx.contains("deepGit 项目群上下文"))
+    @Assert(ctx.contains("moonGit 项目群上下文"))
     let miss = buildAgentContext(reg.projects, config, "project", "ghost", 8000)
     @Assert(miss.contains("未找到项目"))
 }

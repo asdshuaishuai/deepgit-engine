@@ -1,4 +1,4 @@
-// 托管区域文档引擎：deepGit 只改写自己标记的区块，其余内容逐字节保留。
+// 托管区域文档引擎：moonGit 只改写自己标记的区块，其余内容逐字节保留。
 //
 //   <!-- deepgit:begin progress -->
 //   …生成内容…
@@ -98,7 +98,7 @@ public func parseRegions(text: String): (ArrayList<Region>, ArrayList<String>) {
 
         match (text.indexOf(" -->", idx)) {
             case None =>
-                problems.add("第 ${lineNumberAt(text, idx)} 行的 deepgit 标记缺少闭合的 \" -->\"")
+                problems.add("第 ${lineNumberAt(text, idx)} 行的 <!-- deepgit: 标记缺少闭合的 \" -->\"")
                 break
             case Some(me) =>
                 let headSize = if (isBegin) { beginMarkerPlaceholder.size } else { endMarkerPlaceholder.size }
@@ -385,7 +385,7 @@ private func assertRegionsWritable(
     if (!problems.isEmpty()) {
         throw DgError(
             "DOC_REGION_MALFORMED",
-            "${basename(filePath)} 的 deepgit 托管标记结构异常，已拒绝改写（否则可能覆盖你的内容）：\n  - " +
+            "${basename(filePath)} 的 <!-- deepgit: 托管标记结构异常，已拒绝改写（否则可能覆盖你的内容）：\n  - " +
                 joinStrings(problems, "\n  - "),
             1,
             Some(basename(filePath)),
@@ -426,7 +426,7 @@ private func assertRegionsWritable(
         if (n == 1 && !owned.contains(name) && !legacyDocLevel) {
             throw DgError(
                 "DOC_REGION_NOT_OWNED",
-                "${basename(filePath)} 里已有一个名为「${name}」的 deepgit 托管区块，" +
+                "${basename(filePath)} 里已有一个名为「${name}」的 <!-- deepgit: 托管区块，" +
                     "但引擎从未接管过**这个区块** —— 那很可能是你自己写的内容，引擎不会覆盖它。\n" +
                     "  确认可以交给引擎的话：删掉该区块（含 begin/end 两行）后重试。",
                 1,
@@ -474,7 +474,7 @@ public func readDocForRewrite(filePath: String): String {
     } catch (e: Exception) {
         throw DgError("DOC_NOT_UTF8",
             "${basename(filePath)} 不是合法的 UTF-8 文本（可能是 GBK/UTF-16 编码或含二进制内容），已拒绝改写：" +
-            "deepGit 会把读到的内容整篇写回，有损解码会把托管区之外的用户正文替换成 U+FFFD 并永久固化。" +
+            "moonGit 会把读到的内容整篇写回，有损解码会把托管区之外的用户正文替换成 U+FFFD 并永久固化。" +
             "请先把它转存为 UTF-8（macOS 可用 `iconv -f gbk -t utf-8 <原文件> > <文件>`）再重试")
     }
 }
@@ -523,7 +523,7 @@ public func applyRegions(filePath: String, regions: ArrayList<(String, String)>,
         copy(Path(filePath), to: Path(backupPath), overwrite: true)
     }
 
-    // 只规整 deepGit 生成的区域内容（renderBlock 内已做），
+    // 只规整 moonGit 生成的区域内容（renderBlock 内已做），
     // 文档其余部分必须逐字节保留 —— 不能对整篇文档做 tidyMarkdown。
     writeFileAtomic(filePath, next)
     // 归属凭据必须在文档写成功**之后**记：先记后写一旦写失败，
@@ -677,7 +677,7 @@ public func verifyPreservation(filePath: String, backupFile: String): (Bool, Boo
                     }
                     // 措辞要准确：这里比对的是「当前文件」与「上次写入前的备份」，
                     // 差异只说明非托管区域在上次写入之后被改过 —— 可能是使用者自己编辑的，
-                    // 也可能是 deepGit 破坏了托管区域以外的内容。两者后果不同，
+                    // 也可能是 moonGit 破坏了托管区域以外的内容。两者后果不同，
                     // 不能一律写成「用户内容被改动」而让使用者误以为引擎毁了自己的内容。
                     return (false, false, "非托管区域与上次写入前不一致（你之后编辑过，或引擎改动了托管区域外内容；备份可恢复）")
             }
@@ -886,12 +886,12 @@ func testUserContentIsPreservedByteForByte(): Unit {
 
 @Test
 func testUpsertRegionKeepsOldTimestampWhenContentUnchanged(): Unit {
-    let content1 = "> deepGit · 更新于 2026-09-30 10:00\n\n正文内容"
+    let content1 = "> moonGit · 更新于 2026-09-30 10:00\n\n正文内容"
     let doc = upsertRegion("# t\n", "progress", content1)
-    let content2 = "> deepGit · 更新于 2026-09-30 11:00\n\n正文内容"
+    let content2 = "> moonGit · 更新于 2026-09-30 11:00\n\n正文内容"
     let doc2 = upsertRegion(doc, "progress", content2)
     @Assert(doc2 == doc)  // 时间戳未刷新
-    let content3 = "> deepGit · 更新于 2026-09-30 11:00\n\n正文已改变"
+    let content3 = "> moonGit · 更新于 2026-09-30 11:00\n\n正文已改变"
     let doc3 = upsertRegion(doc, "progress", content3)
     @Assert(doc3 != doc)
     @Assert(doc3.contains("正文已改变"))
@@ -917,14 +917,14 @@ func testNoOpGuardSurvivesCrossMinuteStampAndTrailingNewlines(): Unit {
     let backupDir = "${dir}/bk"
     try {
         // 真实渲染器的形态：尾部两个换行 + 引用行 + 若干空行
-        let rendered1 = "> deepGit · 更新于 2026-09-30 10:00\n\n## 进度\n\n- main：3 个提交\n\n\n"
+        let rendered1 = "> moonGit · 更新于 2026-09-30 10:00\n\n## 进度\n\n- main：3 个提交\n\n\n"
         let r1 = applyRegions(file, regionsOf(rendered1), backupDir, "")
         @Assert(r1.changed)
         let after1 = readFileTextOr(file, "")
         @Assert(after1.contains("10:00"))
 
         // 跨一分钟：只有时间戳和尾部换行数不同，正文一字未改
-        let rendered2 = "> deepGit · 更新于 2026-09-30 11:00\n\n## 进度\n\n- main：3 个提交\n\n\n"
+        let rendered2 = "> moonGit · 更新于 2026-09-30 11:00\n\n## 进度\n\n- main：3 个提交\n\n\n"
         let r2 = applyRegions(file, regionsOf(rendered2), backupDir, "")
         // 核心：必须判定为「无变化」
         @Assert(!r2.changed)
@@ -937,7 +937,7 @@ func testNoOpGuardSurvivesCrossMinuteStampAndTrailingNewlines(): Unit {
         @Assert(countBackupFiles(backupDir) == 0)
 
         // 正文真变了就必须改 —— 守卫不能变成「什么都不写」
-        let rendered3 = "> deepGit · 更新于 2026-09-30 11:00\n\n## 进度\n\n- main：9 个提交\n\n\n"
+        let rendered3 = "> moonGit · 更新于 2026-09-30 11:00\n\n## 进度\n\n- main：9 个提交\n\n\n"
         let r3 = applyRegions(file, regionsOf(rendered3), backupDir, "")
         @Assert(r3.changed)
         @Assert(readFileTextOr(file, "").contains("9 个提交"))

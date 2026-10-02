@@ -25,8 +25,8 @@ func testPositionalsOnlySkipsValueFlagPairs(): Unit {
 func testValueFlagsValueIsNeverTreatedAsProject(): Unit {
     // 行为级回归：带值 flag 的「值」绝不能被当成位置参数（项目名）。
     // 曾经的缺陷：--note / --limit / --dir 不在 VALUE_FLAGS 里，于是
-    //   deepgit update p --note "shipped v2"  → 未找到项目：shipped v2
-    //   deepgit journal p --limit 5            → 未找到项目：5
+    //   moongit update p --note "shipped v2"  → 未找到项目：shipped v2
+    //   moongit journal p --limit 5            → 未找到项目：5
     // 且 findProjectIn 走子串兜底，值若是某项目名的子串还会静默命中错误项目。
     //
     // 这个测试按行为断言，而不是抄 VALUE_FLAGS 自身 —— 抄写式断言发现不了清单缺项。
@@ -346,7 +346,7 @@ func testDocsPayloadDisclosesUnreadableInsteadOfShorteningArray(): Unit {
 @Test
 func testDoubleDashEndsFlagParsing(): Unit {
     // `--` 以前只是个「无值 flag」被跳过，后面仍然在 flag 空间里：
-    //   deepgit report -- --out /tmp/x.md   → --out 被正常解析，报告写进了 /tmp/x.md
+    //   moongit report -- --out /tmp/x.md   → --out 被正常解析，报告写进了 /tmp/x.md
     // 调用方以为自己传的是字面量，实际被引擎改了行为。现在 `--` 之后一律字面量。
     let args = ArrayList<String>(["update", "--", "--note", "v2 release"])
 
@@ -376,8 +376,8 @@ func testDoubleDashEndsFlagParsing(): Unit {
 @Test
 func testValueFlagMissingValueFailsLoudly(): Unit {
     // 原实现 flagValue() 只看下一个 token，于是
-    //   deepgit add <path> --name --note  → 项目被真的注册成 "--note"（数据污染）
-    //   deepgit report --out              → 静默回落到默认路径，exit 0
+    //   moongit add <path> --name --note  → 项目被真的注册成 "--note"（数据污染）
+    //   moongit report --out              → 静默回落到默认路径，exit 0
     // 两种都必须在分发前就被拦下，且以 usage 错误（exit 2）退出。
 
     // 1) 带值 flag 后面紧跟另一个 flag
@@ -749,7 +749,7 @@ func testVerifyJsonMustNotSubtractMissingTwice(): Unit {
     // JSON 与文本自相矛盾。
     //
     // 后果比「数字不好看」严重：verified:false 配 note
-    // 「暂无可校验的文档（需要先执行 deepgit update）」会**直接诱导 agent
+    // 「暂无可校验的文档（需要先执行 moongit update）」会**直接诱导 agent
     // 重跑 update 覆盖用户文档** —— 而 README 其实刚刚逐字节校验通过。
     //
     // 审计给的原始场景：README.md 与 AGENTS.md 都跑过 update 生成备份，
@@ -760,13 +760,13 @@ func testVerifyJsonMustNotSubtractMissingTwice(): Unit {
     @Assert(verified)
     @Assert(note.isEmpty())
     // 且绝不能出现「先跑 update」那句 —— 它是诱导覆盖用户文档的元凶
-    @Assert(!note.contains("deepgit update"))
+    @Assert(!note.contains("moongit update"))
 
     // 真的什么都不可校验时，措辞必须把「先跑 update」说出来
     let (p0, v0, n0) = verifyOutcome(0, 0, 0, 0)
     @Assert(p0 == 0)
     @Assert(!v0)
-    @Assert(n0.contains("deepgit update"))
+    @Assert(n0.contains("moongit update"))
 
     // 「可校验的都缺失」与「什么都没有」必须分开 ——
     // 前者该去恢复文档，后者该先 update，处置完全不同
@@ -775,7 +775,7 @@ func testVerifyJsonMustNotSubtractMissingTwice(): Unit {
     @Assert(!v1)
     @Assert(n1.contains("文档缺失"))
     @Assert(n1.contains("可从备份恢复"))
-    @Assert(!n1.contains("需要先执行 deepgit update"))
+    @Assert(!n1.contains("需要先执行 moongit update"))
 
     // 无法判定不算通过
     let (p2, v2, n2) = verifyOutcome(2, 2, 0, 0)
@@ -887,7 +887,7 @@ func testCmdVerifyMustUseLatestRealBackupSeam(): Unit {
 ///
 /// 原来 `checked == 0 && missing == 0` 排在 undetermined 之前，于是
 /// 「一份文档无法判定（引擎新建、没有写入前快照）」会拿到
-/// note「暂无可校验的文档（**需要先执行 deepgit update**）」——
+/// note「暂无可校验的文档（**需要先执行 moongit update**）」——
 /// 而用户刚刚跑过 update，再跑一次不会有任何变化。
 ///
 /// 那句 note 存在的目的就是诱导 agent 重跑 update，所以指错方向
@@ -902,18 +902,18 @@ func testUndeterminedMustNotBeAdvisedToRerunUpdate(): Unit {
     // 处置方向必须说对：去弄快照，不是重跑 update
     @Assert(n.contains("无法判定"))
     @Assert(n.contains("写入前快照"))
-    @Assert(!n.contains("需要先执行 deepgit update"))
+    @Assert(!n.contains("需要先执行 moongit update"))
 
     // 真的什么都没有时，「先跑 update」才是对的处置 —— 不得被上一条带跑
     let (_, v0, n0) = verifyOutcome(0, 0, 0, 0)
     @Assert(!v0)
-    @Assert(n0.contains("需要先执行 deepgit update"))
+    @Assert(n0.contains("需要先执行 moongit update"))
 
     // 缺失的处置方向是「从备份恢复」，与上面两个都不同
     let (_, v2, n2) = verifyOutcome(0, 0, 2, 0)
     @Assert(!v2)
     @Assert(n2.contains("可从备份恢复"))
-    @Assert(!n2.contains("需要先执行 deepgit update"))
+    @Assert(!n2.contains("需要先执行 moongit update"))
     @Assert(!n2.contains("写入前快照"))
 }
 
@@ -922,9 +922,9 @@ func testWorkableTargetsNeverReportsSilenceAsSuccess(): Unit {
     // 「没有活可干」必须与「活干完了」在退出码上可区分。
     //
     // 旧实现在空注册表下静默 exit 0、stdout 全空：
-    //   deepgit update        → 无输出，exit 0
-    //   deepgit update --json → `[]`，exit 0
-    //   deepgit deep          → 无输出，exit 0
+    //   moongit update        → 无输出，exit 0
+    //   moongit update --json → `[]`，exit 0
+    //   moongit deep          → 无输出，exit 0
     // agent / CI 读到 exit 0 就认定「全部项目已是最新」，于是永远不去跑
     // scan / add，注册表就一直空着 —— 静默降级成事实性谎言。
     //
@@ -962,9 +962,9 @@ func testWorkableTargetsNeverReportsSilenceAsSuccess(): Unit {
         @Assert(disabledMsg.contains("disabled"))
         // ⚠️ 负控：不能建议一个不存在的子命令。
         // `disabled` 全代码只读不写，没有 enable/disable 子命令，
-        // 说「运行 deepgit enable」是「说错了」而非「没说」。
-        @Assert(!disabledMsg.contains("deepgit enable"))
-        @Assert(!disabledMsg.contains("deepgit disable"))
+        // 说「运行 moongit enable」是「说错了」而非「没说」。
+        @Assert(!disabledMsg.contains("moongit enable"))
+        @Assert(!disabledMsg.contains("moongit disable"))
 
         // 有目标时必须完全放行 —— 显式点名被 disabled 的项目也要能跑
         let okList = ArrayList<ProjectEntry>()
@@ -2129,8 +2129,8 @@ func testEveryKnownConfigKeyHasAValidSample(): Unit {
 /// ⚠️ 这是 #194 那个测试的加强版。原测试只保证「已知键读写都通」，
 /// 但保证不了**反向**：某人在 `configSetValue` 里加了一个 case 却忘了加进
 /// `configKnownKeys()`，于是
-///     deepgit config set update.newKey 5   →  ✓ 已设置
-///     deepgit config get update.newKey     →  ✗ 未知配置键
+///     moongit config set update.newKey 5   →  ✓ 已设置
+///     moongit config get update.newKey     →  ✗ 未知配置键
 /// 写入口报成功、读入口说这个键不存在 —— 正是 #193 / #202 / #203 那一族。
 /// 函数末尾的 `case _ => throw 未知配置键` 让这件事编译期无感，只能靠源码比对。
 @Test

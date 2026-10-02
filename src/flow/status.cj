@@ -549,7 +549,7 @@ func testProjectStatusOnRealRepo(): Unit {
     @Assert(Json.strAt(status, "kind", "") == "git")
     @Assert(Json.intAt(status, "commitCount", 0) == 1)
     @Assert(Json.strAt(status, "headline", "").size > 0)
-    // README 是托管文档，即使被 deepGit 改过也不算用户脏
+    // README 是托管文档，即使被 moonGit 改过也不算用户脏
     @Assert(Json.intAt(status, "userDirtyCount", -1) == 0)
     removePathIfExists(base)
     removePathIfExists(deepgitPath(["store", pid]))

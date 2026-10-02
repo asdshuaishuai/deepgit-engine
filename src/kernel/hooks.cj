@@ -2,8 +2,8 @@
 //
 // 安全设计：
 // - 只装 post-commit（非阻塞，绝不会让 commit 失败）
-// - 钩子后台异步调用 deepgit track，提交不等待任何扫描或 AI
-// - 托管块标记：重装只替换 deepGit 自己的块，其余内容保留；
+// - 钩子后台异步调用 moongit track，提交不等待任何扫描或 AI
+// - 托管块标记：重装只替换 moonGit 自己的块，其余内容保留；
 //   卸载只删这一块
 package moongit.kernel
 
@@ -19,9 +19,9 @@ let HOOK_END = "# deepgit:end"
 
 func hookBody(enginePath: String, hookName: String, hookLog: String): String {
     let note = if (hookName == "post-merge") {
-        "deepGit post-merge hook — 合并后记录默认分支进度。"
+        "moonGit post-merge hook — 合并后记录默认分支进度。"
     } else {
-        "deepGit post-commit hook — 后台记录分支进度。"
+        "moonGit post-commit hook — 后台记录分支进度。"
     }
     let sb = StringBuilder()
     sb.append(HOOK_BEGIN)
@@ -57,6 +57,12 @@ func hookBody(enginePath: String, hookName: String, hookLog: String): String {
     sb.append("fi\n")
     sb.append("if [ -x \"${enginePath}\" ]; then\n")
     sb.append("  (\"${enginePath}\" track --quiet --source hook >/dev/null 2>>\"${hookLog}\" &)\n")
+    // 名字探测与执行必须是**同一个**：探测 moongit 却执行 deepgit（或反过来），
+    // 后果是「钩子静默什么都不做」—— 用户那边表现为进度记录无声停止，
+    // 没有任何报错，与「把引擎卸了」的症状一模一样（见下方卸载章节）。
+    // 新名优先、旧名兜底：没跑过新 install.sh 的机器上只有 deepgit。
+    sb.append("elif command -v moongit >/dev/null 2>&1; then\n")
+    sb.append("  (moongit track --quiet --source hook >/dev/null 2>>\"${hookLog}\" &)\n")
     sb.append("elif command -v deepgit >/dev/null 2>&1; then\n")
     sb.append("  (deepgit track --quiet --source hook >/dev/null 2>>\"${hookLog}\" &)\n")
     sb.append("fi\n")
@@ -192,9 +198,9 @@ public func uninstallHookFor(repoDir: String, hookName: String): HookResult {
             // git 只会打一行 hint：
             //   hint: The '.git/hooks/post-commit' hook was ignored
             //          because it's not set as executable.
-            // 没人会注意到，于是用户以为「卸掉 deepGit 就恢复正常了」，
-            // 实际上自己的自动化已经死了。这比 deepGit 装错了严重得多 ——
-            // 毁掉的是**不属于** deepGit 的东西。
+            // 没人会注意到，于是用户以为「卸掉 moonGit 就恢复正常了」，
+            // 实际上自己的自动化已经死了。这比 moonGit 装错了严重得多 ——
+            // 毁掉的是**不属于** moonGit 的东西。
             //
             // 方向选择：还原**卸载时**的位，而不是一律 755。
             // 判定读不出来时（fileIsExecutable 返回 false）宁可不动，
@@ -401,7 +407,7 @@ func testPostMergeHookLifecycle(): Unit {
     let content = readFileText(res.file).getOrThrow()
     @Assert(content.contains("post-merge hook"))
     @Assert(!content.contains("post-commit hook"))
-    @Assert(content.contains("deepgit track --quiet --source hook"))
+    @Assert(content.contains("moongit track --quiet --source hook"))
     // 重装幂等（不重复）
     let res2 = installHookFor(base, "/fake/engine", "post-merge")
     @Assert(res2.replaced)
@@ -443,6 +449,38 @@ func testHookPrefersRecordedEnginePathOverPathLookup(): Unit {
     @Assert(absIdx.getOrThrow() < pathIdx.getOrThrow())
     // 两者都要还在（PATH 是兜底，不是删掉）
     @Assert(script.contains("track --quiet --source hook"))
+}
+
+/// 钩子里 `command -v X` 探测的名字，必须与该分支里**实际执行**的命令同名。
+///
+/// 2026-10-03 改名时踩过：批量替换把执行侧的 `deepgit track` 换成了 `moongit track`，
+/// 探测侧的 `command -v deepgit` 因为后面紧跟 `>` 没被命中 ——
+/// 结果是**测旧名、跑新名**。装的机器上只有 moongit 时两个分支都进不去，
+/// 钩子**静默什么都不做**：用户那边表现为进度记录无声停止、零报错，
+/// 症状与「把引擎卸了」一模一样，最难自查的那一类。
+///
+/// 判据钉的是**关系**（探测名 == 执行名），不是具体字面量：
+/// 下次再改名这条判据照样有效，而真出现交叉时必红。
+@Test
+func testHookPathProbeAndInvocationUseSameBinaryName(): Unit {
+    let script = hookBody("/abs/path/to/engine/main", "post-commit", "/tmp/lg/hook.log")
+    for (name in ["moongit", "deepgit"]) {
+        let probe = script.indexOf("command -v ${name} ")
+        let run = script.indexOf("(${name} track --quiet")
+        @Assert(probe.isSome())
+        @Assert(run.isSome())
+        let p = probe.getOrThrow()
+        let r = run.getOrThrow()
+        // 探测必须排在自己的执行之前
+        @Assert(p < r)
+        // 两者之间不许夹着别的探测 —— 那说明两个名字的分支被交叉了
+        @Assert(indexOfFrom(script, p + 1, "command -v ") >= r)
+    }
+    // 反向：执行过的名字，没有一个是不探测就直接跑的
+    for (name in ["moongit", "deepgit"]) {
+        @Assert(script.indexOf("(${name} track --quiet").isSome())
+        @Assert(script.indexOf("command -v ${name} ").isSome())
+    }
 }
 
 @Test
@@ -607,7 +645,7 @@ func testHookLogFileIsNonEmptyDetection(): Unit {
 
 @Test
 func testHookUninstallDoesNotSilentlyDisableUsersOwnHook(): Unit {
-    // 卸载 deepGit 钩子时**必须还原权限位**。
+    // 卸载 moonGit 钩子时**必须还原权限位**。
     //
     // 实测（修复前）：用户自写了一个可执行的 post-commit（-rwxr-xr-x）
     //   hook install   → -rwxr-xr-x
@@ -616,8 +654,8 @@ func testHookUninstallDoesNotSilentlyDisableUsersOwnHook(): Unit {
     // rename 不继承原 mode。git 只会打一行 hint：
     //   hint: The '.git/hooks/post-commit' hook was ignored
     //          because it's not set as executable.
-    // 用户以为「卸掉 deepGit 就恢复正常」，实际上自己的自动化已经死了 ——
-    // 毁掉的是**不属于** deepGit 的东西。
+    // 用户以为「卸掉 moonGit 就恢复正常」，实际上自己的自动化已经死了 ——
+    // 毁掉的是**不属于** moonGit 的东西。
     let base = "/tmp/deepgit-hookperm-${nowMillis()}"
     let testHome = base + "-home"
     ensureDir(testHome)

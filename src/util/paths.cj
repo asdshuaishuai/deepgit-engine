@@ -192,7 +192,7 @@ public func dirname(p: String): String {
     }
 }
 
-/// 显示用短路径：/Volumes/data/…/deepGit
+/// 显示用短路径：/Volumes/data/…/moonGit
 public func prettyPath(p: String, maxLen: Int64): String {
     if (p.size <= maxLen) {
         return p
@@ -451,7 +451,7 @@ public func writeFileAtomic(filePath: String, content: String): Unit {
         } catch (e: Exception) {
             // 写失败时不要把临时文件留在用户仓库里 —— 它会变成 git status 里的脏文件，
             // 而且用户无从判断它是什么。（进程被 kill -9 的情况无法在此处理，
-            // 由 deepgit doctor 的残留检查兜底。）
+            // 由 moongit doctor 的残留检查兜底。）
             removePathIfExists(tmp)
             attempt += 1
             if (attempt >= 2) {

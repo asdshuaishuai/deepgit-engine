@@ -175,13 +175,13 @@ public func addProject(inputPath: String, name: String, tags: ArrayList<String>,
     // ⚠️⚠️ #198：名字算出来是空的就**必须拒绝注册**，不能写一条空名项目。
     //
     // 原来只有 `isDirectoryPath` 一道闸，于是
-    //     deepgit add /            →  ✓ 已注册：（dir）→ /
+    //     moongit add /            →  ✓ 已注册：（dir）→ /
     //     MCP add_project {"path": ""} → 已注册：（/）
     // 两条都往注册表里塞了 `name=""`、`path="/"` 的条目。后果不是「多一行」：
     //   ① 那条项目**永远引用不到** —— `findProjectIn` 对空 ref 直接返回 None，
     //      于是 `remove` 之类的命令根本删不掉它（用户连补救手段都没有）；
     //   ② 它**永久污染每一次聚合命令**：实测注册后
-    //        deepgit status --json → summary.failedProjects = 1
+    //        moongit status --json → summary.failedProjects = 1
     //        该项目的 error = 「Native function error.」
     //      一句用户看不懂、也无处可查的错，挂在每一次 status/dashboard/report 上。
     // 引擎只是「如实地」报了一个它本不该收下的输入。

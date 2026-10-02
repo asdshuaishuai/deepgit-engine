@@ -99,7 +99,7 @@ public func runDeep(project: ProjectEntry, config: Config, opts: DeepOptions): D
         let base = recordBranchBaseline(project, config, facts, progress, config.maxShallowBranches)
 
         // 章节内容：规则引擎确定性渲染。引擎是 AI 无关的——
-        // LLM 增强由上层 AI 实现（deepGit.app）基于 /api/context 自行完成。
+        // LLM 增强由上层 AI 实现（deepDolphin.app）基于 /api/context 自行完成。
         let provider = "rules"
         var highlights = ArrayList<String>()
         let (readmeOverview, readmeHistory, agentArch, agentCmds) = rulesDeepSections(facts, progress, config.language)

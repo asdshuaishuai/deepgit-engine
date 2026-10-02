@@ -1085,7 +1085,7 @@ func testUntrackedFilesSurvivesDanglingSymlink(): Unit {
 
 @Test
 func testSelfRepoIfAvailable(): Unit {
-    // 在 deepGit 仓库自身运行时验证真实 git 读取
+    // 在 moonGit 仓库自身运行时验证真实 git 读取
     let here = "/Volumes/data/dev/coding/deepcodeUI/deepGit"
     if (isGitRepo(here)) {
         let branch = currentBranch(here)
@@ -1805,7 +1805,7 @@ public func runGitOp(root: String, op: String, message: String): GitOpResult {
             }
             return GitOpResult(op, r.ok() && !r.timedOut, out.trimAscii())
         case "stash" =>
-            let m = if (message.isBlank()) { "deepgit stash ${nowIso()}" } else { message }
+            let m = if (message.isBlank()) { "moongit stash ${nowIso()}" } else { message }
             return gitOpExec(root, op, ["stash", "push", "-m", m])
         case "unstash" => return gitOpExec(root, op, ["stash", "pop"])
         case _ => return GitOpResult(op, false, "未知操作：${op}（支持 pull/push/commit/stash/unstash/fetch）")

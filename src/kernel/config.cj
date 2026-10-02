@@ -181,7 +181,7 @@ public func loadConfig(): Config {
 /// `clientAppSettings` / `update.experimental` / `server.tls` 三个键被静默抹掉，
 /// 而命令还打印「已设置 update.backupKeep = 5」。
 ///
-/// config.json 是**共享文件**：客户端层（deepGit.app）也在里面放自己的设置。
+/// config.json 是**共享文件**：客户端层（deepDolphin.app）也在里面放自己的设置。
 /// 引擎整份重写 = 客户端的配置被引擎的一次 `config set` 悄悄清空。
 /// 方向也反了：保护性写操作的失败方向应当是「多留一份」，不是「顺手删掉不认识的」。
 ///
@@ -332,7 +332,7 @@ func testConfigRejectsNegativeBackupKeepOnLoad(): Unit {
 
 @Test
 func testSaveConfigPreservesKeysEngineDoesNotOwn(): Unit {
-    // config.json 是**共享文件**：客户端层（deepGit.app）也在里面放自己的设置。
+    // config.json 是**共享文件**：客户端层（deepDolphin.app）也在里面放自己的设置。
     // 原来 saveConfig 由结构体重新生成整份文档，于是引擎不认识的键全部消失。
     //
     // 实测 `moongit config set update.backupKeep 5` 前后：

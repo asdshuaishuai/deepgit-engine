@@ -1,17 +1,35 @@
-# deepGit Engine
+# moonGit Engine
 
 **基于 git 历史的本地项目群进度引擎（跨平台核心，AI 无关）。**
 
 AI 开发时代，最容易丢失的不是代码，而是**进度和文档**——人和 AI 都会忘记「这个分支做到哪了」「README 是否还准」。
-deepGit Engine 用 git 自己的历史回答这两个问题：
+moonGit Engine 用 git 自己的历史回答这两个问题：
 
 - **记录进度现状（按分支）**：每个分支做到哪、停滞多久、是否已合并，存进全局进度库。
 - **浅更新文档**：把各分支进度写进 `README.md` / `AGENTS.md` / `CLAUDE.md` 的**托管区域**。
 - **深度更新文档**（手动触发）：基于全量历史重写 `overview` / `architecture` / `commands` / `history` 章节。
 
-> 文档更新只改写 deepGit 自己标记的区域，**其余内容逐字节保留**；写入前自动备份。
+> 文档更新只改写 moonGit 自己标记的区域，**其余内容逐字节保留**；写入前自动备份。
 
-配套客户端（菜单栏常驻 + 管理面板 + **AI 层**）见 [deepgit-clients](https://github.com/asdshuaishuai/deepgit-clients) 仓库。
+配套客户端（菜单栏常驻 + 管理面板 + **AI 层**）见 [deepDolphin](https://github.com/asdshuaishuai/deepDolphin) 仓库。
+
+## 命名：改了什么，为什么有些没改
+
+引擎更名为 **moonGit**（原 deepGit），客户端应用统一为 **deepDolphin**。改名有一条硬边界：
+
+> **改的是「名字」，没改「身份」。** 凡是构成既有数据或既有外部契约的东西一律保持原样 ——
+> 跟着改名会让引擎认不出已托管的区域、另开新区，或者让所有现存调用脚本一次性失效。
+
+| 改了 | 没改（且**不要**顺手改） | 为什么留着 |
+|---|---|---|
+| CLI 命令 `moongit` | 数据目录 **`~/.deepgit/`** | 里面是用户已积累的进度库与注册表。改名等于让引擎在一个空目录重新开始，旧数据变孤儿 |
+| 仓包名 `moongit` | 文档托管标记 **`<!-- deepgit:begin -->`** | 已写进用户手写 README/AGENTS 的字面量。改了引擎就找不到托管区域，会**另起新区**而不是就地更新 |
+| `scripts/moongit.sh` | 环境变量 **`DEEPGIT_BIN` / `DEEPGIT_HOME`** | 外部调用方的既有接口（客户端、CI、文档、别人的 shell profile 都在用） |
+| 安装到 `~/.local/bin/moongit` | MCP 资源 URI **`deepgit://project/{id}`** | 已发布协议标识符，不是显示名。改了会打断所有已配置好的 MCP 客户端，零功能收益 |
+| GitHub 仓 `asdshuaishuai/moongit` | | |
+
+兼容性：安装时同时留 `deepgit → moongit` 软链，老脚本照常能跑；
+`moongit` 与 `deepgit` 两个 argv[0] 都被识别，不会报「未知命令」。
 
 ## AI 架构（deepDesign 模式）
 
@@ -20,8 +38,8 @@ deepGit Engine 用 git 自己的历史回答这两个问题：
 
 | 提供 | 接口 | 说明 |
 |---|---|---|
-| **上下文包** | `deepgit context [项目] [--budget N] --json`（MCP：context 类工具） | 预算内（字符数）的 markdown 事实摘要：总览/脉搏/分支表/日志/里程碑 |
-| **工具清单** | `deepgit tools --json`（MCP：`tools/list`） | agent 可执行操作的结构化清单（10 项：读上下文/文档/日志，跑更新，git 操作，里程碑） |
+| **上下文包** | `moongit context [项目] [--budget N] --json`（MCP：context 类工具） | 预算内（字符数）的 markdown 事实摘要：总览/脉搏/分支表/日志/里程碑 |
+| **工具清单** | `moongit tools --json`（MCP：`tools/list`） | agent 可执行操作的结构化清单（10 项：读上下文/文档/日志，跑更新，git 操作，里程碑） |
 | **工具执行** | 对应的 CLI 子命令 | agent 决定调用，引擎照常执行并返回结果 |
 
 ## AI Agent 接入：CLI / MCP / Skill（三件套）
@@ -31,22 +49,22 @@ deepGit Engine 用 git 自己的历史回答这两个问题：
 ### 1. CLI（一次性问答与脚本）
 
 ```sh
-deepgit status --json            # 全部项目状态
-deepgit context [项目] [--budget N]   # agent 上下文包（markdown，字符预算内）
-deepgit tools                    # agent 工具清单（JSON）
-deepgit dashboard --json         # 项目群聚合
+moongit status --json            # 全部项目状态
+moongit context [项目] [--budget N]   # agent 上下文包（markdown，字符预算内）
+moongit tools                    # agent 工具清单（JSON）
+moongit dashboard --json         # 项目群聚合
 ```
 
 ### 2. MCP 服务器（工具化接入，推荐）
 
 ```sh
-deepgit mcp                      # stdio JSON-RPC（2024-11-05）
+moongit mcp                      # stdio JSON-RPC（2024-11-05）
 ```
 
 宿主配置示例（Claude Code / 任何 MCP 宿主）：
 
 ```json
-{"mcpServers": {"deepgit": {"command": "/path/to/deepgit", "args": ["mcp"]}}}
+{"mcpServers": {"moongit": {"command": "/path/to/moongit", "args": ["mcp"]}}}
 ```
 
 提供 **15 个工具**：list_projects、get_group_context、get_project_context、get_project_status、
@@ -57,8 +75,8 @@ git_op、list_milestones、milestone_add、milestone_action、add_project；
 ### 3. Skill（教学包，让编码类 agent 学会用引擎）
 
 ```sh
-deepgit skill print              # 输出 SKILL.md 内容
-deepgit skill install            # 安装到 ~/.zcode/skills/deepgit/SKILL.md（--dir 可指定）
+moongit skill print              # 输出 SKILL.md 内容
+moongit skill install            # 安装到 ~/.zcode/skills/moongit/SKILL.md（--dir 可指定）
 ```
 
 内容含：三种接入方式、工具清单、典型任务配方（项目现状/项目群周报/收尾打扫/项目说明）、红线。
@@ -66,10 +84,10 @@ deepgit skill install            # 安装到 ~/.zcode/skills/deepgit/SKILL.md（
 ### 红线（三件套共有）
 
 - git 操作白名单（pull/push/commit/stash/unstash/fetch），无 reset/clean/force-push
-- 文档写入仅限 deepGit 托管区域；用户内容逐字节保留
+- 文档写入仅限 moonGit 托管区域；用户内容逐字节保留
 - 引擎只提供事实与动作；判断与表达由 agent 完成
 
-上层 AI 实现（deepGit.app 内置「AI 助手」，或未来的独立 agent 层）负责：
+上层 AI 实现（deepDolphin.app 内置「AI 助手」，或未来的独立 agent 层）负责：
 **models.dev 目录选型、provider 通道（ai-sdk 风格，原生 tool_calls）**、
 prompt 组装、工具调用循环、答案渲染——与 deepDesign 之于 moonviz 的分层完全同构。
 
@@ -77,7 +95,7 @@ prompt 组装、工具调用循环、答案渲染——与 deepDesign 之于 moo
 
 ## 多平台路线
 
-引擎是**唯一的业务核心**，所有 UI 交互层（各平台客户端）只消费它的两种接口：CLI `--json`（客户端主通道，以子进程方式调用）与 MCP（`deepgit mcp`，stdio JSON-RPC，AI agent 用）。传输层只在本机进程之间通信（子进程 + 管道/stdio），**不跨网络，没有 HTTP 服务**。
+引擎是**唯一的业务核心**，所有 UI 交互层（各平台客户端）只消费它的两种接口：CLI `--json`（客户端主通道，以子进程方式调用）与 MCP（`moongit mcp`，stdio JSON-RPC，AI agent 用）。传输层只在本机进程之间通信（子进程 + 管道/stdio），**不跨网络，没有 HTTP 服务**。
 
 > 「进程内」这个词在本仓库里只指**进程内 FFI**（把引擎编成 dylib 链接进客户端）——
 > 那条路在仓颉 1.0.5 上**已决定不做**（见 `AGENTS.md` 不变量 58），
@@ -97,46 +115,46 @@ prompt 组装、工具调用循环、答案渲染——与 deepDesign 之于 moo
 ```sh
 # 1. 安装仓颉 SDK LTS 1.0.5：https://cangjie-lang.cn/download/1.0.5
 # 2. 构建并安装
-sh scripts/install.sh        # macOS 自动处理 SDK 兼容问题，装到 ~/.local/bin/deepgit
+sh scripts/install.sh        # macOS 自动处理 SDK 兼容问题，装到 ~/.local/bin/moongit
 
 # 3. 注册项目群
-deepgit scan ~/dev --depth 4
+moongit scan ~/dev --depth 4
 
 # 4. 看现状 / 浅更新 / 深度更新
-deepgit status
-deepgit update
-deepgit deep --scope readme
+moongit status
+moongit update
+moongit deep --scope readme
 ```
 
 ## 命令一览
 
 ```
-deepgit list                      列出已注册项目及一句话现状
-deepgit add <路径> [--name N]      注册项目
-deepgit remove <项目> [--purge]    取消注册
-deepgit scan [根目录...] [--depth N]
-deepgit status [项目]              查看进度现状（只读，不写任何文件）
-deepgit track [项目]               进度快照：只写进度库，不改文档（钩子用）
-deepgit update [项目] [--docs S]   浅更新：记录分支进度 + 刷新文档
-deepgit deep [项目] [--scope S]    深度更新：重写文档章节
-deepgit journal [项目] [--branch B]
-deepgit git <pull|push|commit|stash|unstash|fetch> [项目]
+moongit list                      列出已注册项目及一句话现状
+moongit add <路径> [--name N]      注册项目
+moongit remove <项目> [--purge]    取消注册
+moongit scan [根目录...] [--depth N]
+moongit status [项目]              查看进度现状（只读，不写任何文件）
+moongit track [项目]               进度快照：只写进度库，不改文档（钩子用）
+moongit update [项目] [--docs S]   浅更新：记录分支进度 + 刷新文档
+moongit deep [项目] [--scope S]    深度更新：重写文档章节
+moongit journal [项目] [--branch B]
+moongit git <pull|push|commit|stash|unstash|fetch> [项目]
                                   面板级 git 操作（无破坏性命令）--message M 传提交信息
-deepgit milestone <add|list|done|drop|remove> [项目] [名称]
+moongit milestone <add|list|done|drop|remove> [项目] [名称]
                                   里程碑：--tag T（tag 存在即自动达成）--date --desc
-deepgit dashboard                 跨项目聚合：活跃度 / 里程碑 / 语言分布 / 待合入
-deepgit report [项目] [--out F]   导出自包含 Markdown 进度报告
-deepgit hook <install|uninstall|status> [项目]   post-commit + post-merge 钩子
-deepgit verify [项目]             校验文档完整性（用户内容是否被改动）
-deepgit config <list|get|set> [k] [v]
-deepgit doctor                    环境自检
+moongit dashboard                 跨项目聚合：活跃度 / 里程碑 / 语言分布 / 待合入
+moongit report [项目] [--out F]   导出自包含 Markdown 进度报告
+moongit hook <install|uninstall|status> [项目]   post-commit + post-merge 钩子
+moongit verify [项目]             校验文档完整性（用户内容是否被改动）
+moongit config <list|get|set> [k] [v]
+moongit doctor                    环境自检
 ```
 
 全局选项：`--json`（机器可读）、`-q`（静默）、`-v`（详细日志）。
 
 ## 客户端契约
 
-**没有本地 HTTP 服务，也没有 `deepgit serve`。** 客户端（各平台 UI 层）以**子进程**方式调用 CLI，
+**没有本地 HTTP 服务，也没有 `moongit serve`。** 客户端（各平台 UI 层）以**子进程**方式调用 CLI，
 读 `status` / `dashboard` / `milestone list` / `journal` / `docs` / `config` 的 `--json` 输出；
 写操作调用 `update` / `deep` / `track` / `git <op>` / `add` / `scan` / `milestone <子命令>`。
 
@@ -179,14 +197,14 @@ src/kernel/   配置 / 注册表 / 存储 / git 封装 / 事实采集 / 里程�
 src/ai/       provider（curl）/ 提示词 / 规则引擎
 src/flow/     浅更新 / 深更新 / 状态聚合 / 仪表盘 / 报告 / 文档读取（编排层）
 src/cli/      CLI 命令 + MCP 服务器（stdio JSON-RPC）
-scripts/      install.sh（含极简 SDK 自动部署）/ deepgit.sh / build-minimal-sdk.sh
+scripts/      install.sh（含极简 SDK 自动部署）/ moongit.sh / build-minimal-sdk.sh
 ```
 
 依赖方向严格单向：`util → kernel → ai → flow → cli`。
 
 ## 构建细节与已知边界
 
-见 [AGENTS.md](AGENTS.md)（仓颉编码约定、macOS SDK 兼容、测试基线 491 项）。
+见 [AGENTS.md](AGENTS.md)（仓颉编码约定、macOS SDK 兼容、测试基线 492 项）。
 
 - SHA-256 自研（通过官方测试向量），不用于密码学安全场景。
 - AI 摘要质量取决于提交信息质量。

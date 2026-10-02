@@ -266,7 +266,7 @@ func validateKnownFlags(args: ArrayList<String>): Unit {
             case None => ()
         }
         if (!KNOWN_FLAGS.contains(name)) {
-            throw DgError.usage("未知 flag：${a}（deepgit --help 查看支持的参数；值以 - 开头时用 --flag=值 形式）")
+            throw DgError.usage("未知 flag：${a}（moongit --help 查看支持的参数；值以 - 开头时用 --flag=值 形式）")
         }
     }
 }
@@ -523,7 +523,7 @@ func cmdMilestone(rest: ArrayList<String>, ctx: CliContext): Int64 {
                 for (m in orphans) {
                     Log.info("  ${m.name}（projectId=${m.projectId}）")
                 }
-                Log.info("  重新注册同一路径即可恢复显示；确认要删就用 deepgit milestone remove <项目> <里程碑>")
+                Log.info("  重新注册同一路径即可恢复显示；确认要删就用 moongit milestone remove <项目> <里程碑>")
             }
             return 0
         case "done" | "drop" | "reopen" =>
@@ -708,7 +708,7 @@ func cmdReport(rest: ArrayList<String>, ctx: CliContext): Int64 {
         }
     }
     if (targets.size == 0) {
-        Log.error("没有已注册项目，先运行 deepgit scan")
+        Log.error("没有已注册项目，先运行 moongit scan")
         return 1
     }
 
@@ -919,7 +919,7 @@ func cmdTools(rest: ArrayList<String>, ctx: CliContext): Int64 {
     return 0
 }
 
-let SKILL_FRONTMATTER = "---\nname: deepgit\ndescription: 用 deepGit 引擎管理本地 git 项目群的进度：查现状、记进度、浅/深更新文档、git 操作、里程碑。适用于任何关于本地项目状态、分支进度、项目文档维护的问题。\n---\n\n"
+let SKILL_FRONTMATTER = "---\nname: deepgit\ndescription: 用 moonGit 引擎管理本地 git 项目群的进度：查现状、记进度、浅/深更新文档、git 操作、里程碑。适用于任何关于本地项目状态、分支进度、项目文档维护的问题。\n---\n\n"
 
 func skillMarkdown(): String {
     let engine = currentExecutable()
@@ -937,8 +937,8 @@ func skillMarkdown(): String {
         + "`journal <项目>`、`dashboard --json`")
     let sb = StringBuilder()
     sb.append(SKILL_FRONTMATTER)
-    sb.append("# deepGit — 本地项目群进度引擎（agent 使用指南）\n\n")
-    sb.append("deepGit 是 **AI 无关** 的确定性内核：它提供事实与动作，你（agent）负责理解与表达。\n\n")
+    sb.append("# moonGit — 本地项目群进度引擎（agent 使用指南）\n\n")
+    sb.append("moonGit 是 **AI 无关** 的确定性内核：它提供事实与动作，你（agent）负责理解与表达。\n\n")
     sb.append("## ${ways.size} 种接入方式（按场景选）\n\n")
     for (i in 0..ways.size) {
         sb.append("${i + 1}. ${ways[i]}\n\n")
@@ -950,7 +950,7 @@ func skillMarkdown(): String {
     sb.append("- **项目说明文档**：get_project_context + get_project_docs → 生成 markdown 说明\n\n")
     sb.append("## 红线\n\n")
     sb.append("- git_op 只允许白名单操作（pull/push/commit/stash/unstash/fetch），没有 reset/clean/force-push\n")
-    sb.append("- 文档更新只发生 deepGit 托管区域内（引擎保证），用户内容逐字节保留\n")
+    sb.append("- 文档更新只发生 moonGit 托管区域内（引擎保证），用户内容逐字节保留\n")
     sb.append("- 引擎是 AI 无关的：所有判断与表达由你完成，引擎只提供事实\n")
     return sb.toString()
 }
@@ -1155,7 +1155,7 @@ func cmdDashboard(rest: ArrayList<String>, ctx: CliContext): Int64 {
     let projs = Json.getOr(dash, "projects")
     printOut(dashboardProjectLine(projs))
     if (Json.intAt(projs, "failed", 0) > 0 && Json.intAt(projs, "total", 0) == 0) {
-        Log.error("全部项目都读取失败，下面所有统计都是空的。逐个排查：deepgit status <项目名>")
+        Log.error("全部项目都读取失败，下面所有统计都是空的。逐个排查：moongit status <项目名>")
     }
     let work = Json.getOr(dash, "work")
     printOut("工作面：分支 ${Json.intAt(work, "branches", 0)} · 待合入分支 ${Json.intAt(work, "mergeCandidates", 0)} · 未跟踪文件 ${Json.intAt(work, "untrackedFiles", 0)} · stash ${Json.intAt(work, "stashes", 0)}")
@@ -1171,7 +1171,7 @@ func cmdDashboard(rest: ArrayList<String>, ctx: CliContext): Int64 {
         var shown: Int64 = 0
         for (it in items) {
             if (shown >= 8) {
-                printOut("  … 共 ${items.size} 条，完整列表：deepgit milestone list")
+                printOut("  … 共 ${items.size} 条，完整列表：moongit milestone list")
                 break
             }
             printOut("  ${milestoneLine(it)}")
@@ -1257,14 +1257,14 @@ func printHelp(): Unit {
     printOut("  -v, --verbose            详细日志")
     printOut("")
     printOut("示例：")
-    printOut("  deepgit scan ~/dev --depth 3        # 扫描并注册项目群")
-    printOut("  deepgit status                      # 看全部项目现状")
-    printOut("  deepgit update deepGit              # 浅更新指定项目")
-    printOut("  deepgit deep --scope readme         # 手动触发 README 深度更新")
-    printOut("  deepgit hook install                # 装 post-commit 钩子")
-    printOut("  deepgit milestone add myapp v1.0 --tag v1.0.0 --date 2026-12-01")
-    printOut("  deepgit dashboard                   # 项目群全景")
-    printOut("  deepgit report --out ~/Desktop/progress.md  # 导出报告")
+    printOut("  moongit scan ~/dev --depth 3        # 扫描并注册项目群")
+    printOut("  moongit status                      # 看全部项目现状")
+    printOut("  moongit update moonGit              # 浅更新指定项目")
+    printOut("  moongit deep --scope readme         # 手动触发 README 深度更新")
+    printOut("  moongit hook install                # 装 post-commit 钩子")
+    printOut("  moongit milestone add myapp v1.0 --tag v1.0.0 --date 2026-12-01")
+    printOut("  moongit dashboard                   # 项目群全景")
+    printOut("  moongit report --out ~/Desktop/progress.md  # 导出报告")
 }
 
 /// 解析目标项目：给了就用，没给则用 cwd 推断
@@ -1302,9 +1302,9 @@ func resolveTargets(rest: ArrayList<String>, allowAll: Bool): ArrayList<ProjectE
 /// 把它们改成报错会直接打断客户端的解码契约。
 ///
 /// 旧实现在空注册表下静默 exit 0、stdout 全空：
-///   deepgit update         → 无任何输出，exit 0
-///   deepgit update --json  → `[]`，exit 0
-///   deepgit deep           → 无任何输出，exit 0
+///   moongit update         → 无任何输出，exit 0
+///   moongit update --json  → `[]`，exit 0
+///   moongit deep           → 无任何输出，exit 0
 /// agent / CI 读到 exit 0 就认定「全部项目已是最新」，于是永远不去跑
 /// `scan` / `add`，注册表就一直空着 —— 静默降级成事实性谎言。
 /// 同一份「没有目标」的判定散在多个命令里各写一遍也是隐患，
@@ -1521,7 +1521,7 @@ func cmdRemove(rest: ArrayList<String>, ctx: CliContext): Int64 {
                 // 不说的话用户会以为数据被删了而放弃找回。
                 Log.warn("${orphanCandidates} 条里程碑现在指向一个已取消注册的项目，不再出现在 milestone list 里。")
                 Log.info("  数据仍在 ${deepgitPath(["milestones.json"])} 里没丢；重新注册同一路径即可恢复显示。")
-                Log.info("  想彻底删掉它们：deepgit milestone remove <项目> <里程碑>（需要先重新注册该项目）")
+                Log.info("  想彻底删掉它们：moongit milestone remove <项目> <里程碑>（需要先重新注册该项目）")
             }
         }
     }
@@ -1660,7 +1660,7 @@ func cmdScan(rest: ArrayList<String>, ctx: CliContext): Int64 {
     if (roots.size == 0) {
         let config = loadConfig()
         if (config.roots.size == 0) {
-            throw DgError.usage("用法：moongit scan <根目录...> [--depth N]\n（可在配置里设 roots 作为默认扫描根：deepgit config set roots a,b）")
+            throw DgError.usage("用法：moongit scan <根目录...> [--depth N]\n（可在配置里设 roots 作为默认扫描根：moongit config set roots a,b）")
         }
         for (r in config.roots) {
             roots.add(r)
@@ -1816,7 +1816,7 @@ func cmdStatus(rest: ArrayList<String>, ctx: CliContext): Int64 {
     }
     Log.info("共 ${Json.intAt(summary, "listedProjects", 0)} 个项目${failedNote} · ${Json.intAt(summary, "branchCount", 0)} 个分支${branchNote} · 活跃 ${Json.intAt(summary, "activeProjects", 0)} · 停滞 ${Json.intAt(summary, "staleProjects", 0)}")
     if (failed > 0 && Json.intAt(summary, "projectCount", 0) == 0) {
-        Log.error("全部项目都读取失败，没有生成任何事实。逐个排查：deepgit status <项目名>")
+        Log.error("全部项目都读取失败，没有生成任何事实。逐个排查：moongit status <项目名>")
     }
     return groupExitCode(Json.intAt(summary, "projectCount", 0), Json.intAt(summary, "listedProjects", 0))
 }
@@ -1883,7 +1883,7 @@ func printSingleStatus(project: ProjectEntry, config: Config): Int64 {
     let lastDeep = Json.strAt(progressMeta, "lastDeepAt", "")
     printOut("进度更新：${if (lastUpdate.size > 0) { formatDateTime(lastUpdate) } else { "从未" }} · 深度更新：${if (lastDeep.size > 0) { formatDateTime(lastDeep) } else { "从未" }}")
     if (Json.intAt(status, "userDirtyCount", 0) > 0) {
-        printOut("工作区：${Json.intAt(status, "userDirtyCount", 0)} 处未提交改动（不含 deepGit 托管文档）")
+        printOut("工作区：${Json.intAt(status, "userDirtyCount", 0)} 处未提交改动（不含 moonGit 托管文档）")
     }
 
     let journal = Json.arrAt(status, "journal")
@@ -1901,7 +1901,7 @@ func printSingleStatus(project: ProjectEntry, config: Config): Int64 {
         // 截断必须写出来。只打 5 条就收工，用户会以为「这个项目最近就这些」。
         // JSON 路径已有 journalTruncated 字段，这里是文本路径的对应披露。
         if (Json.boolAt(status, "journalTruncated", false)) {
-            printOut("- … 仅显示最近 ${Json.intAt(status, "journalLimit", 5)} 条，完整历史：deepgit journal ${Json.strAt(status, "name", "<项目>")} --limit N")
+            printOut("- … 仅显示最近 ${Json.intAt(status, "journalLimit", 5)} 条，完整历史：moongit journal ${Json.strAt(status, "name", "<项目>")} --limit N")
         }
         // 坏行也必须说：entries 少了内容却不说原因，调用方会以为「最近没更新过」
         if (Json.intAt(status, "journalUnparsableLines", 0) > 0) {
@@ -2305,7 +2305,7 @@ func cmdJournal(rest: ArrayList<String>, ctx: CliContext): Int64 {
         }
         // 「有结果」这一路同样必须披露窗口被截断 —— 文案与 HTTP 出口共用同一份纯函数。
         // 上一版只把标志位接到了「筛完为空」那一路，于是
-        //   deepgit journal gamma --branch main --limit 3   （实际有 30 条）
+        //   moongit journal gamma --branch main --limit 3   （实际有 30 条）
         // 打出 3 条就干净收工，看上去和「这个分支一共就 3 条」一模一样。
         // 「上限当全量」这一族已经栽到第 12 次：只接一半等于把谎报从
         // 「说没有」换成「说只有这些」。
@@ -2513,7 +2513,7 @@ func cmdConfig(rest: ArrayList<String>, ctx: CliContext): Int64 {
         printOut("扫描根：${if (cfg.roots.size == 0) { "（未设置）" } else { joinStrings(cfg.roots, ", ") } }")
         printOut("文档：${joinStrings(cfg.docs, ", ")}")
         printOut("分支上限：${cfg.maxShallowBranches}")
-        printOut("AI：由客户端层负责（deepGit.app 设置），引擎保持 AI 无关")
+        printOut("AI：由客户端层负责（deepDolphin.app 设置），引擎保持 AI 无关")
         return 0
     }
     if (sub[0] == "get") {
@@ -2524,7 +2524,7 @@ func cmdConfig(rest: ArrayList<String>, ctx: CliContext): Int64 {
         // ⚠️ #194：未知键**必须报错**，不能返回 null + rc=0。
         //
         // 原来 `configGetValue` 的兜底是 `Json.null()`，于是
-        //   deepgit config get 瞎写的键   → 打印 `null`，退出码 0
+        //   moongit config get 瞎写的键   → 打印 `null`，退出码 0
         // 而同一批键在 `config set` 那边是「✗ 未知配置键：瞎写的键」+ 非 0。
         // 读侧说「这个键的值是 null」、写侧说「这个键不存在」——
         // 两套判据、两种结论，脚本没法分辨自己是拼错了键还是键真的没值。
@@ -2672,7 +2672,7 @@ func parseIntStrict(s: String, key: String): Int64 {
 /// 文档缺失那一支在 `checked += 1` **之前**就 continue 了，
 /// 所以 missing 根本不在 checked 里。实测 checked=1/undetermined=0/missing=1
 /// → passed=0，于是 `verified:false` 配 note「暂无可校验的文档
-/// （需要先执行 deepgit update）」—— 而**同一命令的文本路径**
+/// （需要先执行 moongit update）」—— 而**同一命令的文本路径**
 /// （checked - undeterminedCount）算出 1，打印「✓ 校验通过：1 份」。
 /// JSON 与文本自相矛盾。
 ///
@@ -2703,7 +2703,7 @@ public func verifyOutcome(checked: Int64, undetermined: Int64, missing: Int64, f
     }
     // ⚠️⚠️ #195：判据顺序必须与状态对应。原来 `checked == 0 && missing == 0`
     // 排在 undetermined 前面，于是「一份文档无法判定（引擎新建、没有快照）」
-    // 会拿到 note「暂无可校验的文档（**需要先执行 deepgit update**）」——
+    // 会拿到 note「暂无可校验的文档（**需要先执行 moongit update**）」——
     // 而用户**刚刚跑过 update**，再跑一次不会有任何变化。
     // 那句 note 的用途是诱导 agent 重跑 update，所以指错方向比不说更糟：
     // 它会把一份好文档再覆盖一遍，却什么都没修好。
@@ -2713,7 +2713,7 @@ public func verifyOutcome(checked: Int64, undetermined: Int64, missing: Int64, f
     // 「没有任何可校验的东西」和「可校验的都缺失/无法判定」必须分开说 ——
     // 前者的正确处置是先 update，后者是去恢复文档 / 查权限。
     if (checked == 0 && missing == 0) {
-        return (0, false, "暂无可校验的文档（需要先执行 deepgit update）")
+        return (0, false, "暂无可校验的文档（需要先执行 moongit update）")
     }
     if (checked == 0) {
         return (0, false, "没有可校验的文档：${missing} 份文档缺失（备份仍在，可从备份恢复）")
@@ -2799,7 +2799,7 @@ func cmdVerify(rest: ArrayList<String>, ctx: CliContext): Int64 {
                 // 目录能列、但除了元数据没有快照 = 引擎新建的文档（或备份被清掉了）。
                 // 必须进 undetermined，且必须在 documents 里留下一行 ——
                 // 静默 continue 会让这份文档从输出里消失，而 checked=0 配 note
-                //「需要先执行 deepgit update」是在教用户做一件已经做过、
+                //「需要先执行 moongit update」是在教用户做一件已经做过、
                 // 且再做一次也不会有用的事。
                 undeterminedCount += 1
                 rows.add([

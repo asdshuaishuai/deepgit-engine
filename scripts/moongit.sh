@@ -1,5 +1,5 @@
 #!/bin/sh
-# deepGit 快速启动：构建（如需）并运行常用命令
+# moonGit 快速启动：构建（如需）并运行常用命令
 set -e
 
 DIR="$(cd "$(dirname "$0")/.." && pwd)"

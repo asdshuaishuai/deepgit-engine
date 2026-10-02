@@ -439,7 +439,7 @@ public func milestoneProgress(m: Milestone, repoPath: String, defaultBranch: Str
     // if 块，把空路径交给 gitTry —— 而空路径意味着「在进程当前工作目录里跑」。
     // 后果不是「拿不到数」，是**拿一个毫不相干的仓库的数**再安到用户里程碑上：
     // 实测（测试进程的 CWD 在引擎仓库里）没绑仓库的里程碑报出
-    //     创建以来 6 提交        ← 那是 deepGit 自己的仓库的提交数
+    //     创建以来 6 提交        ← 那是 moonGit 自己的仓库的提交数
     // 而 dashboard 对没配 git 的项目正是传空路径。
     //
     // 「没绑仓库」是正常配置（gitReadable 仍为 true，「没查」≠「查失败」），

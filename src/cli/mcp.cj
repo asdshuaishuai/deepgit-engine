@@ -546,7 +546,7 @@ public func mcpHandle(req: JsonValue): Option<JsonValue> {
     match (method) {
         case "initialize" =>
             let server = Json.obj()
-            Json.set(server, "name", Json.of("deepgit-engine"))
+            Json.set(server, "name", Json.of("moongit"))
             Json.set(server, "version", Json.of("0.1.0"))
             let caps = Json.obj()
             let toolsCap = Json.obj()
@@ -1452,7 +1452,7 @@ func testMcpShallowUpdateSchemaMarksNameRequired(): Unit {
 ///   ① 那条项目**永远引用不到** —— `findProjectIn` 对空 ref 直接返回 None，
 ///      连 `remove` 都删不掉它；
 ///   ② 它**永久污染每一次聚合命令**：实测之后
-///        deepgit status --json → summary.failedProjects = 1
+///        moongit status --json → summary.failedProjects = 1
 ///      而那条项目的 error 是「Native function error.」—— 用户看不懂、
 ///      也查不出是哪来的。
 @Test
